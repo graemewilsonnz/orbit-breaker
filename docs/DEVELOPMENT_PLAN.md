@@ -6,9 +6,9 @@ Date: 2026-07-11
 
 ## 1. Outcome
 
-Turn the existing Orbit Breaker proof of concept into a polished, original,
-desktop-first radial arcade shooter without losing time to a game-engine rewrite,
-premature content, or infrastructure that does not improve iteration speed.
+Turn the existing Orbit Breaker proof of concept into a polished, original, desktop-first radial
+arcade shooter without losing time to a game-engine rewrite, premature content, or infrastructure
+that does not improve iteration speed.
 
 The release target is a complete 3-7 minute run in which the player:
 
@@ -18,8 +18,8 @@ The release target is a complete 3-7 minute run in which the player:
 4. Defeats a multi-phase central mothership boss.
 5. Immediately wants to improve score or complete a cleaner run.
 
-The central design test is simple: controlling the circumference must remain the
-most interesting decision in every wave and boss phase.
+The central design test is simple: controlling the circumference must remain the most interesting
+decision in every wave and boss phase.
 
 ## 2. Product Contract
 
@@ -50,17 +50,17 @@ most interesting decision in every wave and boss phase.
 
 ### Release success criteria
 
-| Area | Required result |
-| --- | --- |
-| Comprehension | A new player moves and fires correctly within 10 seconds without reading a manual. |
-| Feel | Movement is immediate and smooth; firing never appears to drop an input. |
-| Fairness | Every damaging threat is visually attributable and avoidable when first telegraphed. |
-| Rhythm | Waves have distinct pressure shapes, short recovery beats, and no accidental dead time. |
-| Power | Every pickup changes a decision or survival option, not only the amount of visual noise. |
-| Performance | Stable 60 fps at 960x720 logical resolution on current desktop Chrome, Edge, and Firefox. |
-| Reliability | No uncaught errors, stuck game states, impossible waves, or restart-only recovery paths. |
-| Replay | Score, centre kills, perfect waves, and high score create a clear reason for another run. |
-| Originality | Theme, naming, silhouettes, patterns, audio, and presentation are original to this game. |
+| Area          | Required result                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------- |
+| Comprehension | A new player moves and fires correctly within 10 seconds without reading a manual.        |
+| Feel          | Movement is immediate and smooth; firing never appears to drop an input.                  |
+| Fairness      | Every damaging threat is visually attributable and avoidable when first telegraphed.      |
+| Rhythm        | Waves have distinct pressure shapes, short recovery beats, and no accidental dead time.   |
+| Power         | Every pickup changes a decision or survival option, not only the amount of visual noise.  |
+| Performance   | Stable 60 fps at 960x720 logical resolution on current desktop Chrome, Edge, and Firefox. |
+| Reliability   | No uncaught errors, stuck game states, impossible waves, or restart-only recovery paths.  |
+| Replay        | Score, centre kills, perfect waves, and high score create a clear reason for another run. |
+| Originality   | Theme, naming, silhouettes, patterns, audio, and presentation are original to this game.  |
 
 ## 3. Current Baseline
 
@@ -77,21 +77,20 @@ The existing prototype is useful and should be evolved, not discarded.
 
 ### What currently limits fast, safe iteration
 
-| Current condition | Development consequence |
-| --- | --- |
-| Globals and ordered script tags | Renames and dependency changes are fragile. |
-| `game.js` owns most orchestration and collision logic | New mechanics increase coupling and regression risk. |
-| Simulation, rendering, audio, and random generation are interleaved | Behaviour cannot be tested or replayed deterministically. |
-| Variable-step simulation | Behaviour can differ across refresh rates and frame stalls. |
-| `Math.random()` throughout gameplay | Bugs and balance cases cannot be reproduced from a seed. |
-| No package scripts, type checks, linting, tests, or production build | Every change depends on manual verification. |
-| No debug controls or run metrics | Tuning is slower and relies on memory rather than evidence. |
-| Fixed backing resolution without device-pixel-ratio handling | The canvas can appear soft on high-density displays. |
-| Empty `.git` directory but no valid Git repository | There is no trustworthy baseline or rollback history yet. |
+| Current condition                                                    | Development consequence                                     |
+| -------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Globals and ordered script tags                                      | Renames and dependency changes are fragile.                 |
+| `game.js` owns most orchestration and collision logic                | New mechanics increase coupling and regression risk.        |
+| Simulation, rendering, audio, and random generation are interleaved  | Behaviour cannot be tested or replayed deterministically.   |
+| Variable-step simulation                                             | Behaviour can differ across refresh rates and frame stalls. |
+| `Math.random()` throughout gameplay                                  | Bugs and balance cases cannot be reproduced from a seed.    |
+| No package scripts, type checks, linting, tests, or production build | Every change depends on manual verification.                |
+| No debug controls or run metrics                                     | Tuning is slower and relies on memory rather than evidence. |
+| Fixed backing resolution without device-pixel-ratio handling         | The canvas can appear soft on high-density displays.        |
+| Empty `.git` directory but no valid Git repository                   | There is no trustworthy baseline or rollback history yet.   |
 
-The first implementation milestone must preserve current behaviour while creating
-a foundation for fast experiments. It must not combine the tooling migration with
-major gameplay changes.
+The first implementation milestone must preserve current behaviour while creating a foundation for
+fast experiments. It must not combine the tooling migration with major gameplay changes.
 
 ## 4. Technical Direction
 
@@ -106,15 +105,15 @@ major gameplay changes.
 - GitHub Actions only after a remote repository exists; the same checks run locally first.
 - No runtime framework and no third-party game engine.
 
-Development will use `localhost`. Production will be a static `dist/` build. If
-double-clicking a local `index.html` remains a hard requirement, add a standalone
-bundle target without weakening the main module architecture.
+Development will use `localhost`. Production will be a static `dist/` build. If double-clicking a
+local `index.html` remains a hard requirement, add a standalone bundle target without weakening the
+main module architecture.
 
 ### Architecture
 
-Use a small state-and-systems design, not a general-purpose entity-component
-framework. Plain typed objects hold state; systems update them in a documented
-order; rendering reads state but does not change it.
+Use a small state-and-systems design, not a general-purpose entity-component framework. Plain typed
+objects hold state; systems update them in a documented order; rendering reads state but does not
+change it.
 
 ```text
 src/
@@ -191,25 +190,24 @@ Input snapshot
   -> render
 ```
 
-This order will be explicit and covered by scenario tests. That prevents subtle
-one-frame differences from changing whether a player is hit, a wave clears, or a
-boss phase awards points.
+This order will be explicit and covered by scenario tests. That prevents subtle one-frame
+differences from changing whether a player is hit, a wave clears, or a boss phase awards points.
 
 ## 5. Development Workflow
 
 ### Standard commands after foundation work
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Start the local game and live reload changes. |
-| `npm run build` | Produce the static release build. |
-| `npm run preview` | Run the production build locally. |
-| `npm run test` | Run unit and deterministic scenario tests. |
-| `npm run test:watch` | Run focused tests while tuning a system. |
-| `npm run test:e2e` | Run browser input and state-flow checks. |
-| `npm run lint` | Check source quality rules. |
-| `npm run typecheck` | Check strict TypeScript contracts. |
-| `npm run check` | Run typecheck, lint, tests, and build together. |
+| Command              | Purpose                                         |
+| -------------------- | ----------------------------------------------- |
+| `npm run dev`        | Start the local game and live reload changes.   |
+| `npm run build`      | Produce the static release build.               |
+| `npm run preview`    | Run the production build locally.               |
+| `npm run test`       | Run unit and deterministic scenario tests.      |
+| `npm run test:watch` | Run focused tests while tuning a system.        |
+| `npm run test:e2e`   | Run browser input and state-flow checks.        |
+| `npm run lint`       | Check source quality rules.                     |
+| `npm run typecheck`  | Check strict TypeScript contracts.              |
+| `npm run check`      | Run typecheck, lint, tests, and build together. |
 
 ### Git discipline
 
@@ -228,19 +226,17 @@ boss phase awards points.
 5. Record outcome and keep, revise, or revert the change.
 6. Run the whole game before closing a milestone.
 
-A development-only panel should provide seed, wave select, invulnerability,
-time scale, enemy spawn, hitbox display, event log, and performance counters.
-It must be excluded from the release UI.
+A development-only panel should provide seed, wave select, invulnerability, time scale, enemy spawn,
+hitbox display, event log, and performance counters. It must be excluded from the release UI.
 
 ## 6. Milestones
 
-Each milestone is a review checkpoint, not a long hidden build phase. The game
-must remain launchable at the end of every checkpoint.
+Each milestone is a review checkpoint, not a long hidden build phase. The game must remain
+launchable at the end of every checkpoint.
 
 ### M0 - Foundation and behaviour parity
 
-Goal: make the existing prototype safe to change without intentionally altering
-its gameplay.
+Goal: make the existing prototype safe to change without intentionally altering its gameplay.
 
 Work:
 
@@ -261,8 +257,8 @@ Gate:
 
 ### M1 - Golden first minute
 
-Goal: make the first minute represent the intended final quality before scaling
-polish across the rest of the game.
+Goal: make the first minute represent the intended final quality before scaling polish across the
+rest of the game.
 
 Work:
 
@@ -325,8 +321,8 @@ Gate:
 
 ### M4 - Mothership boss
 
-Goal: deliver a boss that tests circular positioning rather than acting as a large
-stationary health bar.
+Goal: deliver a boss that tests circular positioning rather than acting as a large stationary health
+bar.
 
 Work:
 
@@ -415,28 +411,28 @@ Gate:
 - Audio-unlock path does not block play when audio is unavailable.
 - Screenshot checks for title, active wave, boss, pause, game over, and victory.
 
-Automated tests protect rules and state flow. Human playtests remain the authority
-for feel, readability, rhythm, and fun.
+Automated tests protect rules and state flow. Human playtests remain the authority for feel,
+readability, rhythm, and fun.
 
 ## 8. Playtest Scorecard
 
 Record at least the following for meaningful iteration passes:
 
-| Metric | Why it matters |
-| --- | --- |
-| Time to first movement and first shot | Tests the 10-second comprehension goal. |
-| Wave clear time | Reveals stalls and pacing spikes. |
-| Damage source and warning time | Finds unfair or unclear threats. |
-| Accuracy and centre-kill ratio | Shows whether inward aiming and risk scoring work. |
-| Dash uses and successful escapes | Shows whether dash is understood and valuable. |
-| Pickup collected, missed, and wasted | Shows whether rewards are readable and reachable. |
-| Multiplier peak and loss cause | Shows whether score play is legible. |
-| Boss phase duration and damage source | Identifies phase imbalance. |
-| Frame time and peak entity count | Prevents polish from degrading responsiveness. |
-| Immediate replay choice | Best lightweight signal for arcade replay value. |
+| Metric                                | Why it matters                                     |
+| ------------------------------------- | -------------------------------------------------- |
+| Time to first movement and first shot | Tests the 10-second comprehension goal.            |
+| Wave clear time                       | Reveals stalls and pacing spikes.                  |
+| Damage source and warning time        | Finds unfair or unclear threats.                   |
+| Accuracy and centre-kill ratio        | Shows whether inward aiming and risk scoring work. |
+| Dash uses and successful escapes      | Shows whether dash is understood and valuable.     |
+| Pickup collected, missed, and wasted  | Shows whether rewards are readable and reachable.  |
+| Multiplier peak and loss cause        | Shows whether score play is legible.               |
+| Boss phase duration and damage source | Identifies phase imbalance.                        |
+| Frame time and peak entity count      | Prevents polish from degrading responsiveness.     |
+| Immediate replay choice               | Best lightweight signal for arcade replay value.   |
 
-Do not add network telemetry for the MVP. Generate a local debug summary and use
-short written playtest notes until there is a real distribution need.
+Do not add network telemetry for the MVP. Generate a local debug summary and use short written
+playtest notes until there is a real distribution need.
 
 ## 9. Priority Backlog
 
@@ -465,15 +461,15 @@ short written playtest notes until there is a real distribution need.
 
 ## 10. Main Risks and Controls
 
-| Risk | Control |
-| --- | --- |
-| Tooling migration breaks the playable prototype | Make M0 parity-only and preserve a tagged baseline. |
-| More effects make threats unreadable | Define presentation layers and a peak effect budget. |
-| Random runs hide regressions | Use seeded RNG and scenario entry points. |
-| Difficulty becomes speed inflation | Increase pattern interaction and pressure budgets first. |
-| Boss work expands indefinitely | Ship one boss with fixed phase and duration gates. |
-| Tuning becomes subjective churn | Change one variable, use named seeds, and record outcomes. |
-| Scope expands before the core is fun | Enforce the deferred list until M6 passes. |
+| Risk                                            | Control                                                    |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| Tooling migration breaks the playable prototype | Make M0 parity-only and preserve a tagged baseline.        |
+| More effects make threats unreadable            | Define presentation layers and a peak effect budget.       |
+| Random runs hide regressions                    | Use seeded RNG and scenario entry points.                  |
+| Difficulty becomes speed inflation              | Increase pattern interaction and pressure budgets first.   |
+| Boss work expands indefinitely                  | Ship one boss with fixed phase and duration gates.         |
+| Tuning becomes subjective churn                 | Change one variable, use named seeds, and record outcomes. |
+| Scope expands before the core is fun            | Enforce the deferred list until M6 passes.                 |
 
 ## 11. Review Decisions
 
@@ -487,5 +483,5 @@ Approval of this plan also approves these defaults:
 6. Target keyboard desktop play and defer mobile, backend, and campaign work.
 7. Use seven review checkpoints, including foundation, each ending in a playable and tested build.
 
-After approval, execution starts with M0 only. Gameplay tuning begins after the
-parity build is reviewed and accepted.
+After approval, execution starts with M0 only. Gameplay tuning begins after the parity build is
+reviewed and accepted.

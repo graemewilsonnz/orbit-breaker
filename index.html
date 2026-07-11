@@ -1,29 +1,19 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Orbit Breaker</title>
-    <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <main class="game-shell" aria-label="Orbit Breaker radial arcade shooter">
       <canvas id="gameCanvas" width="960" height="720">
         Orbit Breaker requires a browser with HTML5 Canvas support.
       </canvas>
+      <p id="appStatus" class="app-status" role="status" aria-live="polite">
+        Loading Orbit Breaker…
+      </p>
     </main>
-
-    <script src="src/config.js"></script>
-    <script src="src/collision.js"></script>
-    <script src="src/audio.js"></script>
-    <script src="src/projectiles.js"></script>
-    <script src="src/powerups.js"></script>
-    <script src="src/player.js"></script>
-    <script src="src/enemies.js"></script>
-    <script src="src/waves.js"></script>
-    <script src="src/bosses.js"></script>
-    <script src="src/ui.js"></script>
-    <script src="src/game.js"></script>
-    <script src="src/main.js"></script>
+    <script type="module" src="/src/app/bootstrap.ts"></script>
   </body>
 </html>

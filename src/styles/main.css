@@ -35,13 +35,40 @@ body {
 }
 
 #gameCanvas {
+  grid-area: 1 / 1;
+  display: block;
   width: min(100%, calc(100vh * 1.333333));
   max-width: 960px;
   height: auto;
   max-height: calc(100vh - 32px);
   aspect-ratio: 4 / 3;
-  display: block;
   background: #05070d;
   border: 1px solid var(--canvas-edge);
   box-shadow: 0 20px 70px rgba(0, 0, 0, 0.48);
+}
+
+.app-status {
+  grid-area: 1 / 1;
+  z-index: 1;
+  margin: 0;
+  color: #8fa8ba;
+  font-size: 0.95rem;
+  pointer-events: none;
+}
+
+.app-status[hidden] {
+  display: none;
+}
+
+.app-error {
+  z-index: 2;
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  margin: 0;
+  padding: 20px;
+  overflow: auto;
+  color: #ffced6;
+  white-space: pre-wrap;
+  background: rgba(25, 5, 11, 0.96);
+  border: 1px solid #ff6b6b;
 }
