@@ -34,16 +34,16 @@ export interface WaveDefinition {
 
 export const WAVE_DEFINITIONS = [
   {
-    name: "Wave 1: Entry",
+    name: "Wave 1: Trace the Ring",
     groups: [
-      { type: "drifter", count: 10, start: 0.5, interval: 0.62, pattern: "sweep", step: 0.62 },
+      { type: "drifter", count: 9, start: 0.85, interval: 0.82, pattern: "sweep", step: 0.68 },
     ],
   },
   {
-    name: "Wave 2: More Angles",
+    name: "Wave 2: Crossing Lines",
     groups: [
-      { type: "drifter", count: 8, start: 0.4, interval: 0.48, pattern: "mirror", step: 0.42 },
-      { type: "drifter", count: 8, start: 3.2, interval: 0.42, pattern: "random" },
+      { type: "drifter", count: 12, start: 0.65, interval: 0.46, pattern: "mirror", step: 0.5 },
+      { type: "drifter", count: 5, start: 6.25, interval: 0.58, pattern: "fan", spread: 1.65 },
     ],
   },
   {

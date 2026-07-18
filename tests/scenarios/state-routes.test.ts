@@ -23,7 +23,7 @@ describe("game state routes", () => {
       score: 0,
       lives: 3,
       bombs: 1,
-      pendingSpawns: 10,
+      pendingSpawns: 9,
     });
   });
 
@@ -43,6 +43,34 @@ describe("game state routes", () => {
     game.step(FIXED_STEP_SECONDS, createInputSnapshot({ pressed: ["pause"] }));
     expect(game.snapshot().state).toBe("playing");
     expect(game.snapshot().waveElapsed).toBe(beforePause);
+  });
+
+  it("does not drop pause taps during transition states", () => {
+    const game = createGame();
+    game.startRun();
+    game.state.state = "waveClear";
+    game.state.stateTimer = 1;
+
+    game.step(FIXED_STEP_SECONDS, createInputSnapshot({ pressed: ["pause"] }));
+    expect(game.snapshot()).toMatchObject({ state: "paused", pausedFrom: "waveClear" });
+    expect(game.state.stateTimer).toBe(1);
+
+    game.step(FIXED_STEP_SECONDS, createInputSnapshot({ pressed: ["pause"] }));
+    expect(game.snapshot().state).toBe("waveClear");
+    expect(game.state.stateTimer).toBe(1);
+  });
+
+  it("clears buffered dash input when a wave leaves active play", () => {
+    const game = createGame();
+    game.startRun();
+    game.state.wave.queue = [];
+    game.state.wave.completeDelay = 0.79;
+    game.state.player.dashCooldown = 0.2;
+
+    game.step(FIXED_STEP_SECONDS, createInputSnapshot({ pressed: ["dash"] }));
+
+    expect(game.snapshot().state).toBe("waveClear");
+    expect(game.state.player.dashBufferTimer).toBe(0);
   });
 
   it("restarts cleanly from game over", () => {

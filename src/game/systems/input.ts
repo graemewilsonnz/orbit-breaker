@@ -30,6 +30,7 @@ export interface InputSnapshot {
   readonly pressed: ActionState;
   isDown(action: Action): boolean;
   wasPressed(action: Action): boolean;
+  isActive(action: Action): boolean;
 }
 
 export interface InputSnapshotOptions {
@@ -240,5 +241,6 @@ function freezeSnapshot(heldSource: ActionState, pressedSource: ActionState): In
     pressed,
     isDown: (action: Action): boolean => held[action],
     wasPressed: (action: Action): boolean => pressed[action],
+    isActive: (action: Action): boolean => held[action] || pressed[action],
   });
 }

@@ -13,8 +13,8 @@ import {
 } from "../../src/game/systems/spawning";
 
 const CANONICAL_WAVE_TIMINGS = [
-  { count: 10, first: 0.5, last: 6.08 },
-  { count: 16, first: 0.4, last: 6.14 },
+  { count: 9, first: 0.85, last: 7.41 },
+  { count: 17, first: 0.65, last: 8.57 },
   { count: 15, first: 0.4, last: 6.4 },
   { count: 17, first: 0.4, last: 6.96 },
   { count: 17, first: 0.4, last: 6.52 },
@@ -24,7 +24,7 @@ const CANONICAL_WAVE_TIMINGS = [
 ] as const;
 
 describe("wave spawn queues", () => {
-  it("preserves the canonical event counts and time bounds", () => {
+  it("pins the authored event counts and time bounds", () => {
     const queues = WAVE_DEFINITIONS.map((definition, index) => {
       const queue = buildSpawnQueue(definition, new SeededRng(`wave-${index + 1}`));
       const expected = required(CANONICAL_WAVE_TIMINGS[index], `timing ${index}`);
@@ -67,27 +67,27 @@ describe("wave spawn queues", () => {
     const sweep = required(required(WAVE_DEFINITIONS[0], "wave 1").groups[0], "sweep");
     const mirror = required(required(WAVE_DEFINITIONS[1], "wave 2").groups[0], "mirror");
     const fan = required(required(WAVE_DEFINITIONS[2], "wave 3").groups[1], "fan");
-    const randomGroup = required(required(WAVE_DEFINITIONS[1], "wave 2").groups[1], "random");
+    const randomGroup = required(required(WAVE_DEFINITIONS[3], "wave 4").groups[0], "random");
 
-    expect(angleFor(sweep, 2, 6, random)).toBeCloseTo(0.9568146928204138);
-    expect(angleFor(mirror, 3, 0.2, random)).toBeCloseTo(3.7615926535897932);
+    expect(angleFor(sweep, 2, 6, random)).toBeCloseTo(1.076814692820414);
+    expect(angleFor(mirror, 3, 0.2, random)).toBeCloseTo(3.8415926535897933);
     expect(angleFor(fan, 0, 0.4, random)).toBeCloseTo(5.783185307179586);
     expect(angleFor(fan, 7, 0.4, random)).toBeCloseTo(1.3);
     expect(angleFor(randomGroup, 0, 0, random)).toBeCloseTo(1.6370473117320847);
   });
 
-  it("pins seeded queue generation and legacy random draw order", () => {
+  it("pins seeded queue generation for the crossing-lines lesson", () => {
     const first = buildSpawnQueue(WAVE_DEFINITIONS[1], new SeededRng("queue-fixture"));
     const repeated = buildSpawnQueue(WAVE_DEFINITIONS[1], new SeededRng("queue-fixture"));
 
     expect(repeated).toEqual(first);
     expect(first.slice(0, 6)).toEqual([
-      { type: "drifter", time: 0.4, angle: 4.358878091762933 },
-      { type: "drifter", time: 0.88, angle: 1.21728543817314 },
-      { type: "drifter", time: 1.3599999999999999, angle: 4.778878091762933 },
-      { type: "drifter", time: 1.8399999999999999, angle: 1.6372854381731399 },
-      { type: "drifter", time: 2.32, angle: 5.198878091762933 },
-      { type: "drifter", time: 2.8, angle: 2.057285438173139 },
+      { type: "drifter", time: 0.65, angle: 4.358878091762933 },
+      { type: "drifter", time: 1.11, angle: 1.21728543817314 },
+      { type: "drifter", time: 1.57, angle: 4.858878091762933 },
+      { type: "drifter", time: 2.0300000000000002, angle: 1.717285438173139 },
+      { type: "drifter", time: 2.49, angle: 5.358878091762933 },
+      { type: "drifter", time: 2.95, angle: 2.217285438173139 },
     ]);
   });
 });
@@ -115,15 +115,15 @@ describe("wave runtime", () => {
     startWave(wave, 1, new SeededRng("timing"));
     const callbacks = createCallbacks();
 
-    updateWave(wave, 0.499, callbacks);
+    updateWave(wave, 0.849, callbacks);
     expect(callbacks.spawnEnemy).not.toHaveBeenCalled();
 
     updateWave(wave, 0.001, callbacks);
     expect(callbacks.spawnEnemy).toHaveBeenCalledTimes(1);
 
-    updateWave(wave, 1.24, callbacks);
+    updateWave(wave, 1.64, callbacks);
     expect(callbacks.spawnEnemy).toHaveBeenCalledTimes(3);
-    expect(wave.queue).toHaveLength(7);
+    expect(wave.queue).toHaveLength(6);
   });
 
   it("pauses wave time and spawning while a boss is active", () => {
@@ -134,7 +134,7 @@ describe("wave runtime", () => {
     updateWave(wave, 10, callbacks);
 
     expect(wave.elapsed).toBe(0);
-    expect(wave.queue).toHaveLength(10);
+    expect(wave.queue).toHaveLength(9);
     expect(callbacks.spawnEnemy).not.toHaveBeenCalled();
   });
 

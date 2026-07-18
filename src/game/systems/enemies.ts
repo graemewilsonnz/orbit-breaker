@@ -230,7 +230,7 @@ function updateBossBeams(boss: BossState, dt: number, host: SimulationHost): voi
     beam.active = beam.timer >= CONFIG.boss.warningTime;
 
     if (beam.active && angularDistance(host.state.player.angle, beam.angle) < beam.width * 0.5) {
-      takePlayerHit(host.state.player, host);
+      takePlayerHit(host.state.player, host, "boss-beam");
     }
 
     if (beam.timer > CONFIG.boss.warningTime + CONFIG.boss.beamTime) {
@@ -275,6 +275,7 @@ export function handleBossShot(
   }
 
   if (isBossShotBlocked(boss, shot.angle)) {
+    host.registerShotHit(shot);
     shot.active = false;
     host.addEffect({
       type: "burst",
@@ -288,6 +289,7 @@ export function handleBossShot(
     return true;
   }
 
+  host.registerShotHit(shot);
   boss.health -= shot.damage;
   boss.hitFlash = 0.08;
   shot.active = false;

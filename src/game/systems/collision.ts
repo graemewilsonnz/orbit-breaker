@@ -50,10 +50,14 @@ export function handleShotEnemyCollisions(host: CollisionHost): void {
       }
 
       const position = enemyPosition(enemy);
-      const hit = distance(shotPosition, position) <= shot.size + enemy.size * 0.82;
+      const hit =
+        distance(shotPosition, position) <=
+        shot.size + enemy.size * CONFIG.hitboxes.enemyTargetScale;
       if (!hit) {
         continue;
       }
+
+      host.registerShotHit(shot);
 
       if (enemy.shielded && enemy.type !== "shield") {
         shot.active = false;
@@ -105,7 +109,7 @@ export function handlePlayerDangerCollisions(host: CollisionHost): void {
   const playerCircle = {
     x: playerPoint.x,
     y: playerPoint.y,
-    radius: host.state.player.size * 0.72,
+    radius: host.state.player.size * CONFIG.hitboxes.playerDamageScale,
   };
 
   for (const bullet of host.state.enemyBullets) {
@@ -117,11 +121,11 @@ export function handlePlayerDangerCollisions(host: CollisionHost): void {
       circlesOverlap(playerCircle, {
         x: point.x,
         y: point.y,
-        radius: bullet.size * 0.9,
+        radius: bullet.size * CONFIG.hitboxes.enemyProjectileScale,
       })
     ) {
       bullet.active = false;
-      takePlayerHit(host.state.player, host);
+      takePlayerHit(host.state.player, host, "enemy-projectile");
     }
   }
 
@@ -134,11 +138,11 @@ export function handlePlayerDangerCollisions(host: CollisionHost): void {
       circlesOverlap(playerCircle, {
         x: point.x,
         y: point.y,
-        radius: enemy.size * 0.66,
+        radius: enemy.size * CONFIG.hitboxes.enemyContactScale,
       })
     ) {
       enemy.active = false;
-      takePlayerHit(host.state.player, host);
+      takePlayerHit(host.state.player, host, "enemy-contact");
       host.addEffect({
         type: "burst",
         x: point.x,

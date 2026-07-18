@@ -1,4 +1,5 @@
 import { ENEMY_TYPES, isEnemyType, type EnemyType } from "../content/enemies";
+import { damageSourceLabel, type DamageSource } from "../runMetrics";
 
 export type DebugWave = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
@@ -13,7 +14,9 @@ export type DebugCommand =
   | Readonly<{ type: "set-time-scale"; scale: DebugTimeScale }>
   | Readonly<{ type: "single-step" }>
   | Readonly<{ type: "spawn-enemy"; enemyType: EnemyType }>
-  | Readonly<{ type: "show-hitboxes"; enabled: boolean }>;
+  | Readonly<{ type: "show-hitboxes"; enabled: boolean }>
+  | Readonly<{ type: "force-state"; state: "gameOver" | "victory" }>
+  | Readonly<{ type: "spawn-player-contact" }>;
 
 export interface DebugSnapshot {
   readonly state: string;
@@ -26,6 +29,19 @@ export interface DebugSnapshot {
   readonly powerups: number;
   readonly bossHealth: number | null;
   readonly pendingSpawns: number;
+  readonly run: {
+    readonly accuracyPercent: number;
+    readonly elapsedSeconds: number;
+    readonly shotsFired: number;
+    readonly shotsHit: number;
+    readonly enemiesDestroyed: number;
+    readonly damageTaken: number;
+    readonly lastDamageSource: DamageSource | null;
+    readonly firstMoveSeconds: number | null;
+    readonly firstShotSeconds: number | null;
+    readonly firstDashSeconds: number | null;
+    readonly waveTimings: readonly { readonly wave: number; readonly seconds: number }[];
+  };
 }
 
 export interface DebugEvent {
@@ -274,6 +290,17 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
     powerups: requireElement<HTMLElement>(root, '[data-value="powerups"]'),
     bossHealth: requireElement<HTMLElement>(root, '[data-value="boss-health"]'),
     pendingSpawns: requireElement<HTMLElement>(root, '[data-value="pending-spawns"]'),
+    accuracy: requireElement<HTMLElement>(root, '[data-value="accuracy"]'),
+    runTime: requireElement<HTMLElement>(root, '[data-value="run-time"]'),
+    hits: requireElement<HTMLElement>(root, '[data-value="hits"]'),
+    kills: requireElement<HTMLElement>(root, '[data-value="kills"]'),
+    damage: requireElement<HTMLElement>(root, '[data-value="damage"]'),
+    damageSource: requireElement<HTMLElement>(root, '[data-value="damage-source"]'),
+    firstMove: requireElement<HTMLElement>(root, '[data-value="first-move"]'),
+    firstShot: requireElement<HTMLElement>(root, '[data-value="first-shot"]'),
+    firstDash: requireElement<HTMLElement>(root, '[data-value="first-dash"]'),
+    waveOneTime: requireElement<HTMLElement>(root, '[data-value="wave-one-time"]'),
+    waveTwoTime: requireElement<HTMLElement>(root, '[data-value="wave-two-time"]'),
   };
 
   let disposed = false;
@@ -322,6 +349,16 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
       case "single-step":
         options.dispatch({ type: "single-step" });
         break;
+      case "force-state": {
+        const state = button.dataset.state;
+        if (state === "gameOver" || state === "victory") {
+          options.dispatch({ type: "force-state", state });
+        }
+        break;
+      }
+      case "spawn-player-contact":
+        options.dispatch({ type: "spawn-player-contact" });
+        break;
       case "spawn-enemy": {
         const enemyType = button.dataset.enemyType;
         if (isEnemyType(enemyType)) {
@@ -363,7 +400,7 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
   ownerDocument.body.append(root);
 
   const update = (): void => {
-    if (disposed) {
+    if (disposed || !root.open) {
       return;
     }
 
@@ -386,6 +423,20 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
     values.bossHealth.textContent =
       snapshot.bossHealth === null ? "\u2014" : formatNumber(snapshot.bossHealth);
     values.pendingSpawns.textContent = formatNumber(snapshot.pendingSpawns);
+    values.accuracy.textContent = `${formatNumber(snapshot.run.accuracyPercent)}%`;
+    values.runTime.textContent = formatDuration(snapshot.run.elapsedSeconds);
+    values.hits.textContent = `${snapshot.run.shotsHit}/${snapshot.run.shotsFired}`;
+    values.kills.textContent = formatNumber(snapshot.run.enemiesDestroyed);
+    values.damage.textContent = formatNumber(snapshot.run.damageTaken);
+    values.damageSource.textContent =
+      snapshot.run.lastDamageSource === null
+        ? "\u2014"
+        : damageSourceLabel(snapshot.run.lastDamageSource);
+    values.firstMove.textContent = formatSeconds(snapshot.run.firstMoveSeconds);
+    values.firstShot.textContent = formatSeconds(snapshot.run.firstShotSeconds);
+    values.firstDash.textContent = formatSeconds(snapshot.run.firstDashSeconds);
+    values.waveOneTime.textContent = formatWaveTime(snapshot.run.waveTimings, 1);
+    values.waveTwoTime.textContent = formatWaveTime(snapshot.run.waveTimings, 2);
 
     const events = options.getEvents().slice(-MAX_EVENT_LINES);
     const eventSignature = JSON.stringify(events);
@@ -454,6 +505,9 @@ function panelMarkup(panelId: number): string {
         <div class="ob-debug__buttons">${waveButtons}</div>
         <div class="ob-debug__row">
           <button type="button" data-command="start-boss">Start boss</button>
+          <button type="button" data-command="force-state" data-state="gameOver">Game over</button>
+          <button type="button" data-command="force-state" data-state="victory">Victory</button>
+          <button type="button" data-command="spawn-player-contact">Test contact</button>
           <label for="${invulnerableId}">
             <input id="${invulnerableId}" data-role="invulnerable" type="checkbox">
             Invulnerable
@@ -506,6 +560,23 @@ function panelMarkup(panelId: number): string {
         </dl>
       </section>
 
+      <section aria-labelledby="ob-debug-summary-${panelId}">
+        <h2 id="ob-debug-summary-${panelId}">Run summary</h2>
+        <dl class="ob-debug__metrics ob-debug__snapshot" aria-live="off">
+          ${metric("Accuracy", "accuracy")}
+          ${metric("Run time", "run-time")}
+          ${metric("Hits/Shots", "hits")}
+          ${metric("Kills", "kills")}
+          ${metric("Damage", "damage")}
+          ${metric("Last source", "damage-source")}
+          ${metric("First move", "first-move")}
+          ${metric("First shot", "first-shot")}
+          ${metric("First dash", "first-dash")}
+          ${metric("Wave 1", "wave-one-time")}
+          ${metric("Wave 2", "wave-two-time")}
+        </dl>
+      </section>
+
       <section aria-labelledby="ob-debug-events-${panelId}">
         <h2 id="ob-debug-events-${panelId}">Recent events</h2>
         <ol class="ob-debug__events" data-role="events" aria-live="polite" aria-relevant="additions text"></ol>
@@ -544,6 +615,25 @@ function formatNumber(value: number, fractionDigits = 0): string {
 function formatMilliseconds(value: number): string {
   const formatted = formatNumber(value, 2);
   return formatted === "\u2014" ? formatted : `${formatted} ms`;
+}
+
+function formatDuration(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+}
+
+function formatSeconds(value: number | null): string {
+  return value === null ? "\u2014" : `${value.toFixed(1)} s`;
+}
+
+function formatWaveTime(
+  timings: readonly { readonly wave: number; readonly seconds: number }[],
+  wave: number,
+): string {
+  const timing = timings.find((candidate) => candidate.wave === wave);
+  return timing === undefined ? "\u2014" : formatDuration(timing.seconds);
 }
 
 function renderEvents(

@@ -184,6 +184,15 @@ function processDebugCommands(runtime: Runtime): void {
       case "show-hitboxes":
         runtime.renderer.setShowHitboxes(command.enabled);
         break;
+      case "force-state":
+        runtime.game.forceState(command.state);
+        break;
+      case "spawn-player-contact":
+        runtime.game.spawnEnemy("drifter", runtime.game.state.player.angle, {
+          radius: runtime.game.state.player.radius - 1,
+          radialSpeed: 60,
+        });
+        break;
     }
   }
 }

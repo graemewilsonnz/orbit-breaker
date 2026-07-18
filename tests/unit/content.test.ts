@@ -20,8 +20,8 @@ import {
   validateWaveDefinitions,
 } from "../../src/game/content/waves";
 
-describe("typed content parity", () => {
-  it("preserves every legacy configuration value", () => {
+describe("typed M1 content contract", () => {
+  it("pins the current gameplay configuration", () => {
     expect(CONFIG).toEqual({
       canvas: { width: 960, height: 720 },
       arena: {
@@ -37,10 +37,11 @@ describe("typed content parity", () => {
       player: {
         size: 16,
         lives: 3,
-        rotationSpeed: 3.2,
-        fireCooldown: 0.18,
-        dashCooldown: 1.2,
-        dashDistance: 0.65,
+        rotationSpeed: 3.6,
+        fireCooldown: 0.15,
+        dashCooldown: 0.9,
+        dashDistance: 0.72,
+        dashInputBuffer: 0.15,
         dashInvulnerability: 0.15,
         invulnerabilityAfterHit: 1.5,
         maxBombs: 3,
@@ -53,6 +54,12 @@ describe("typed content parity", () => {
         playerSize: 4,
         enemySize: 5,
         twinOffset: 0.045,
+      },
+      hitboxes: {
+        playerDamageScale: 0.72,
+        enemyTargetScale: 0.82,
+        enemyContactScale: 0.66,
+        enemyProjectileScale: 0.9,
       },
       enemies: {
         drifter: { health: 1, radialSpeed: [55, 75], size: 13, score: 100 },
@@ -151,19 +158,19 @@ describe("typed content parity", () => {
     expect(WAVE_PATTERNS).toEqual(["sweep", "mirror", "fan", "random"]);
   });
 
-  it("preserves every authored wave group", () => {
+  it("pins every authored wave group", () => {
     expect(WAVE_DEFINITIONS).toEqual([
       {
-        name: "Wave 1: Entry",
+        name: "Wave 1: Trace the Ring",
         groups: [
-          { type: "drifter", count: 10, start: 0.5, interval: 0.62, pattern: "sweep", step: 0.62 },
+          { type: "drifter", count: 9, start: 0.85, interval: 0.82, pattern: "sweep", step: 0.68 },
         ],
       },
       {
-        name: "Wave 2: More Angles",
+        name: "Wave 2: Crossing Lines",
         groups: [
-          { type: "drifter", count: 8, start: 0.4, interval: 0.48, pattern: "mirror", step: 0.42 },
-          { type: "drifter", count: 8, start: 3.2, interval: 0.42, pattern: "random" },
+          { type: "drifter", count: 12, start: 0.65, interval: 0.46, pattern: "mirror", step: 0.5 },
+          { type: "drifter", count: 5, start: 6.25, interval: 0.58, pattern: "fan", spread: 1.65 },
         ],
       },
       {

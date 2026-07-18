@@ -28,6 +28,7 @@ export function createProjectile(options: ProjectileOptions): ProjectileState {
     color: options.color || CONFIG.colors.playerBullet,
     active: true,
     age: 0,
+    hitRegistered: false,
   };
 }
 

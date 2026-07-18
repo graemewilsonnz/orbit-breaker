@@ -1,8 +1,6 @@
 # Orbit Breaker Development Plan
 
-Status: Proposed for review  
-Plan version: 0.1  
-Date: 2026-07-11
+Status: In execution — M1 implemented<br> Plan version: 0.2<br> Date: 2026-07-18
 
 ## 1. Outcome
 
@@ -483,5 +481,5 @@ Approval of this plan also approves these defaults:
 6. Target keyboard desktop play and defer mobile, backend, and campaign work.
 7. Use seven review checkpoints, including foundation, each ending in a playable and tested build.
 
-After approval, execution starts with M0 only. Gameplay tuning begins after the parity build is
+M0 and M1 are now implemented. Further gameplay expansion begins with M2 after the M1 checkpoint is
 reviewed and accepted.

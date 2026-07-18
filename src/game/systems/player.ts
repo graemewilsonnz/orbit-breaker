@@ -1,5 +1,6 @@
 import { CONFIG } from "../config";
 import { normalizeAngle, polarToCartesian } from "../core/geometry";
+import type { DamageSource } from "../runMetrics";
 import type { CartesianPosition, PlayerState } from "../state";
 import type { InputSnapshot } from "./input";
 import type { SimulationHost } from "./host";
@@ -12,6 +13,7 @@ export function createPlayerState(): PlayerState {
     rotationSpeed: CONFIG.player.rotationSpeed,
     fireCooldown: 0,
     dashCooldown: 0,
+    dashBufferTimer: 0,
     lives: CONFIG.player.lives,
     invulnerabilityTimer: 0,
     dashInvulnerabilityTimer: 0,
@@ -49,11 +51,13 @@ export function updatePlayer(
     player.angle = normalizeAngle(player.angle + moveDirection * player.rotationSpeed * dt);
   }
 
-  player.fireCooldown = Math.max(0, player.fireCooldown - dt);
-  player.dashCooldown = Math.max(0, player.dashCooldown - dt);
-  player.invulnerabilityTimer = Math.max(0, player.invulnerabilityTimer - dt);
-  player.dashInvulnerabilityTimer = Math.max(0, player.dashInvulnerabilityTimer - dt);
-  player.flashTimer = Math.max(0, player.flashTimer - dt);
+  player.fireCooldown = tickTimer(player.fireCooldown, dt);
+  player.dashCooldown = tickTimer(player.dashCooldown, dt);
+  const bufferedDashRequested = player.dashBufferTimer > 0;
+  player.dashBufferTimer = tickTimer(player.dashBufferTimer, dt);
+  player.invulnerabilityTimer = tickTimer(player.invulnerabilityTimer, dt);
+  player.dashInvulnerabilityTimer = tickTimer(player.dashInvulnerabilityTimer, dt);
+  player.flashTimer = tickTimer(player.flashTimer, dt);
   player.shieldAngle = normalizeAngle(player.shieldAngle + dt * 4.2);
 
   if (player.weaponTimer > 0) {
@@ -64,9 +68,13 @@ export function updatePlayer(
   }
 
   if (input.wasPressed("dash")) {
-    dashPlayer(player, host);
+    if (!dashPlayer(player, host)) {
+      player.dashBufferTimer = CONFIG.player.dashInputBuffer;
+    }
+  } else if (bufferedDashRequested && dashPlayer(player, host)) {
+    player.dashBufferTimer = 0;
   }
-  if (input.isDown("fire")) {
+  if (input.isActive("fire")) {
     firePlayer(player, host);
   }
   if (input.wasPressed("bomb")) {
@@ -129,7 +137,11 @@ export function isPlayerVulnerable(player: PlayerState): boolean {
 }
 
 /** Returns true only when a life was removed, matching the prototype. */
-export function takePlayerHit(player: PlayerState, host: SimulationHost): boolean {
+export function takePlayerHit(
+  player: PlayerState,
+  host: SimulationHost,
+  source: DamageSource,
+): boolean {
   if (!isPlayerVulnerable(player)) {
     return false;
   }
@@ -153,10 +165,15 @@ export function takePlayerHit(player: PlayerState, host: SimulationHost): boolea
   player.lives -= 1;
   player.invulnerabilityTimer = CONFIG.player.invulnerabilityAfterHit;
   player.flashTimer = CONFIG.player.invulnerabilityAfterHit;
-  host.onPlayerDamaged();
+  host.onPlayerDamaged(source);
   return true;
 }
 
 export function playerPosition(player: PlayerState): CartesianPosition {
   return polarToCartesian(player.angle, player.radius, CONFIG.arena.centerX, CONFIG.arena.centerY);
+}
+
+function tickTimer(timer: number, dt: number): number {
+  const next = timer - dt;
+  return next <= 1e-9 ? 0 : next;
 }

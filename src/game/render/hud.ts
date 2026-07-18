@@ -1,4 +1,5 @@
 import { CONFIG } from "../config";
+import { accuracyPercent, damageSourceLabel, type ReadonlyRunMetrics } from "../runMetrics";
 import type { ReadonlyBossState, ReadonlyGameState } from "../state";
 
 export function renderHud(context: CanvasRenderingContext2D, state: ReadonlyGameState): void {
@@ -74,21 +75,23 @@ export function renderOverlay(context: CanvasRenderingContext2D, state: Readonly
       return;
     case "gameOver":
       drawOverlay(context, 0.58);
-      headline(context, "GAME OVER", 260, 54);
+      headline(context, "GAME OVER", 218, 54);
       subline(
         context,
         `SCORE ${formatScore(state.player.score)}   REACHED ${
           state.boss ? "BOSS" : `WAVE ${state.waveReached}`
         }`,
-        334,
+        286,
       );
-      subline(context, "PRESS ENTER TO RESTART", 376);
+      renderRunSummary(context, state.runMetrics, 336);
+      subline(context, "PRESS ENTER TO RESTART", 462, CONFIG.colors.playerAccent);
       return;
     case "victory":
       drawOverlay(context, 0.5);
-      headline(context, "VICTORY", 252, 56);
-      subline(context, `FINAL SCORE ${formatScore(state.player.score)}`, 330);
-      subline(context, "PRESS ENTER TO PLAY AGAIN", 374);
+      headline(context, "VICTORY", 212, 56);
+      subline(context, `FINAL SCORE ${formatScore(state.player.score)}`, 282);
+      renderRunSummary(context, state.runMetrics, 332);
+      subline(context, "PRESS ENTER TO PLAY AGAIN", 458, CONFIG.colors.playerAccent);
       return;
     case "title":
       drawTitle(context);
@@ -119,10 +122,11 @@ function drawTitle(context: CanvasRenderingContext2D): void {
   context.fillStyle = CONFIG.colors.mutedText;
   context.font = "500 17px Segoe UI, Arial, sans-serif";
   context.fillText(
-    "Left/A and Right/D rotate   Space/Z fire   Shift/X dash   B/C bomb   P/Escape pause",
+    "Left/A and Right/D rotate   Space/Z fire   Shift/X dash",
     CONFIG.canvas.width / 2,
-    334,
+    326,
   );
+  context.fillText("B/C bomb   P/Escape pause", CONFIG.canvas.width / 2, 354);
 
   context.fillStyle = CONFIG.colors.playerAccent;
   context.font = "700 24px Segoe UI, Arial, sans-serif";
@@ -149,14 +153,63 @@ function headline(context: CanvasRenderingContext2D, text: string, y: number, si
   context.restore();
 }
 
-function subline(context: CanvasRenderingContext2D, text: string, y: number): void {
+function subline(
+  context: CanvasRenderingContext2D,
+  text: string,
+  y: number,
+  color: string = CONFIG.colors.mutedText,
+): void {
   context.save();
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillStyle = CONFIG.colors.mutedText;
+  context.fillStyle = color;
   context.font = "600 18px Segoe UI, Arial, sans-serif";
   context.fillText(text, CONFIG.canvas.width / 2, y);
   context.restore();
+}
+
+function renderRunSummary(
+  context: CanvasRenderingContext2D,
+  metrics: ReadonlyRunMetrics,
+  startY: number,
+): void {
+  const lastDamage =
+    metrics.lastDamageSource === null ? "NO DAMAGE" : damageSourceLabel(metrics.lastDamageSource);
+  subline(
+    context,
+    `ACCURACY ${accuracyPercent(metrics)}%  ${metrics.shotsHit}/${metrics.shotsFired} HITS` +
+      `     DAMAGE ${metrics.damageTaken}  ${lastDamage}`,
+    startY,
+    CONFIG.colors.text,
+  );
+
+  const firstWave = metrics.waveTimings.find((timing) => timing.wave === 1);
+  const secondWave = metrics.waveTimings.find((timing) => timing.wave === 2);
+  subline(
+    context,
+    `RUN ${formatDuration(metrics.elapsedSeconds)}` +
+      `     W1 ${firstWave ? formatDuration(firstWave.seconds) : "--:--"}` +
+      `     W2 ${secondWave ? formatDuration(secondWave.seconds) : "--:--"}`,
+    startY + 32,
+  );
+  subline(
+    context,
+    `FIRST MOVE ${formatFirstAction(metrics.firstMoveSeconds)}` +
+      `     FIRE ${formatFirstAction(metrics.firstShotSeconds)}` +
+      `     DASH ${formatFirstAction(metrics.firstDashSeconds)}`,
+    startY + 64,
+  );
+}
+
+function formatDuration(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+}
+
+function formatFirstAction(seconds: number | null): string {
+  return seconds === null ? "--" : `${seconds.toFixed(1)}s`;
 }
 
 export function formatScore(score: number): string {

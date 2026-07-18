@@ -1,7 +1,8 @@
 import type { EnemyType } from "../content/enemies";
 import type { AudioCue } from "../core/events";
 import type { RandomSource } from "../core/rng";
-import type { EffectState, EnemyState, GameState } from "../state";
+import type { DamageSource } from "../runMetrics";
+import type { EffectState, EnemyState, GameState, ProjectileState } from "../state";
 
 /** The enemy constructor fields that the prototype allowed callers to override. */
 export type EnemyOverrides = Partial<
@@ -26,7 +27,8 @@ export interface SimulationHost {
 
   activateBomb(): void;
   clearNearbyEnemyBullets(radius: number): void;
-  onPlayerDamaged(): void;
+  onPlayerDamaged(source: DamageSource): void;
+  registerShotHit(projectile: ProjectileState): void;
   addScore(base: number, source?: EnemyState | null, flat?: boolean): void;
   defeatBoss(): void;
   spawnEnemy(type: EnemyType, angle: number, overrides?: EnemyOverrides): void;

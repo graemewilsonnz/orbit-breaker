@@ -2,6 +2,7 @@ import type { BossId, BossPhase } from "./content/boss";
 import type { EnemyType } from "./content/enemies";
 import type { PowerUpType } from "./content/powerups";
 import type { WaveDefinition } from "./content/waves";
+import type { ReadonlyRunMetrics, RunMetrics } from "./runMetrics";
 
 export const GAME_STATES = [
   "title",
@@ -14,6 +15,7 @@ export const GAME_STATES = [
 ] as const;
 
 export type GameStateId = (typeof GAME_STATES)[number];
+export type PausableGameStateId = "playing" | "waveClear" | "bossIntro";
 
 export const PROJECTILE_OWNERS = ["player", "enemy"] as const;
 export type ProjectileOwner = (typeof PROJECTILE_OWNERS)[number];
@@ -35,6 +37,7 @@ export interface PlayerState extends PolarPosition {
   rotationSpeed: number;
   fireCooldown: number;
   dashCooldown: number;
+  dashBufferTimer: number;
   lives: number;
   invulnerabilityTimer: number;
   dashInvulnerabilityTimer: number;
@@ -60,6 +63,7 @@ export interface ProjectileState extends PolarPosition {
   color: string;
   active: boolean;
   age: number;
+  hitRegistered: boolean;
 }
 
 export interface EnemyState extends PolarPosition {
@@ -148,6 +152,7 @@ export interface WaveRuntimeState {
 
 export interface GameState {
   state: GameStateId;
+  pausedFrom: PausableGameStateId;
   stateTimer: number;
   player: PlayerState;
   wave: WaveRuntimeState;
@@ -164,6 +169,7 @@ export interface GameState {
   perfectWave: boolean;
   lastWavePerfect: boolean;
   shake: number;
+  runMetrics: RunMetrics;
 }
 
 export type ReadonlyPlayerState = Readonly<PlayerState>;
@@ -185,6 +191,7 @@ export interface ReadonlyWaveRuntimeState extends Omit<Readonly<WaveRuntimeState
 
 export interface ReadonlyGameState {
   readonly state: GameStateId;
+  readonly pausedFrom: PausableGameStateId;
   readonly stateTimer: number;
   readonly player: ReadonlyPlayerState;
   readonly wave: ReadonlyWaveRuntimeState;
@@ -201,6 +208,7 @@ export interface ReadonlyGameState {
   readonly perfectWave: boolean;
   readonly lastWavePerfect: boolean;
   readonly shake: number;
+  readonly runMetrics: ReadonlyRunMetrics;
 }
 
 export function asReadonlyGameState(state: GameState): ReadonlyGameState {
