@@ -2,12 +2,21 @@ import type { EnemyType } from "../content/enemies";
 import type { AudioCue } from "../core/events";
 import type { RandomSource } from "../core/rng";
 import type { DamageSource } from "../runMetrics";
-import type { EffectState, EnemyState, GameState, ProjectileState } from "../state";
+import type {
+  EffectState,
+  EnemyOrigin,
+  EnemyResolution,
+  EnemyState,
+  GameState,
+  ProjectileState,
+} from "../state";
 
 /** The enemy constructor fields that the prototype allowed callers to override. */
 export type EnemyOverrides = Partial<
   Pick<EnemyState, "angularVelocity" | "health" | "radialSpeed" | "radius" | "turnRate">
->;
+> & {
+  readonly origin?: EnemyOrigin;
+};
 
 export type EffectRequest = Omit<EffectState, "active" | "age">;
 
@@ -27,9 +36,10 @@ export interface SimulationHost {
 
   activateBomb(): void;
   clearNearbyEnemyBullets(radius: number): void;
-  onPlayerDamaged(source: DamageSource): void;
+  onPlayerDamaged(source: DamageSource, enemyType?: EnemyType | null): void;
   registerShotHit(projectile: ProjectileState): void;
   addScore(base: number, source?: EnemyState | null, flat?: boolean): void;
   defeatBoss(): void;
   spawnEnemy(type: EnemyType, angle: number, overrides?: EnemyOverrides): void;
+  resolveEnemy(enemy: EnemyState, resolution: EnemyResolution): boolean;
 }

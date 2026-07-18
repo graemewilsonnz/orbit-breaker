@@ -1,3 +1,5 @@
+import type { EnemyType } from "./content/enemies";
+
 export const DAMAGE_SOURCES = ["enemy-projectile", "enemy-contact", "boss-beam"] as const;
 
 export type DamageSource = (typeof DAMAGE_SOURCES)[number];
@@ -19,6 +21,7 @@ export interface RunMetrics {
   damageTaken: number;
   damageBySource: Record<DamageSource, number>;
   lastDamageSource: DamageSource | null;
+  lastDamageEnemyType: EnemyType | null;
   firstMoveSeconds: number | null;
   firstShotSeconds: number | null;
   firstDashSeconds: number | null;
@@ -47,6 +50,7 @@ export function createRunMetrics(): RunMetrics {
       "boss-beam": 0,
     },
     lastDamageSource: null,
+    lastDamageEnemyType: null,
     firstMoveSeconds: null,
     firstShotSeconds: null,
     firstDashSeconds: null,
@@ -77,10 +81,15 @@ export function recordFirstAction(
   }
 }
 
-export function recordDamage(metrics: RunMetrics, source: DamageSource): void {
+export function recordDamage(
+  metrics: RunMetrics,
+  source: DamageSource,
+  enemyType: EnemyType | null = null,
+): void {
   metrics.damageTaken += 1;
   metrics.damageBySource[source] += 1;
   metrics.lastDamageSource = source;
+  metrics.lastDamageEnemyType = enemyType;
 }
 
 export function recordWaveTiming(metrics: RunMetrics, wave: number): void {
@@ -89,12 +98,15 @@ export function recordWaveTiming(metrics: RunMetrics, wave: number): void {
   metrics.waveStartedSeconds = metrics.elapsedSeconds;
 }
 
-export function damageSourceLabel(source: DamageSource): string {
+export function damageSourceLabel(
+  source: DamageSource,
+  enemyType: EnemyType | null = null,
+): string {
   switch (source) {
     case "enemy-projectile":
-      return "ENEMY SHOT";
+      return enemyType === "shooter" ? "SHOOTER BOLT" : "ENEMY SHOT";
     case "enemy-contact":
-      return "COLLISION";
+      return enemyType === null ? "COLLISION" : `${enemyType.toUpperCase()} BREACH`;
     case "boss-beam":
       return "BOSS BEAM";
   }

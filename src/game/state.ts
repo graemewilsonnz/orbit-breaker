@@ -3,6 +3,7 @@ import type { EnemyType } from "./content/enemies";
 import type { PowerUpType } from "./content/powerups";
 import type { WaveDefinition } from "./content/waves";
 import type { ReadonlyRunMetrics, RunMetrics } from "./runMetrics";
+import type { WaveOutcome, WaveStats } from "./waveOutcomes";
 
 export const GAME_STATES = [
   "title",
@@ -22,6 +23,24 @@ export type ProjectileOwner = (typeof PROJECTILE_OWNERS)[number];
 
 export const EFFECT_TYPES = ["ring", "burst", "bossPulse", "bomb"] as const;
 export type EffectType = (typeof EFFECT_TYPES)[number];
+
+export const ENEMY_ORIGINS = ["wave", "boss", "debug"] as const;
+export type EnemyOrigin = (typeof ENEMY_ORIGINS)[number];
+
+export const ENEMY_RESOLUTIONS = ["shot", "bomb", "contact", "escaped", "transition"] as const;
+export type EnemyResolution = (typeof ENEMY_RESOLUTIONS)[number];
+
+export const ENEMY_BEHAVIORS = [
+  "approach",
+  "tracking",
+  "locked",
+  "arming",
+  "armed",
+  "release",
+  "windup",
+  "recovery",
+] as const;
+export type EnemyBehavior = (typeof ENEMY_BEHAVIORS)[number];
 
 export interface CartesianPosition {
   x: number;
@@ -64,10 +83,16 @@ export interface ProjectileState extends PolarPosition {
   active: boolean;
   age: number;
   hitRegistered: boolean;
+  sourceEnemyType: EnemyType | null;
 }
 
 export interface EnemyState extends PolarPosition {
   type: EnemyType;
+  origin: EnemyOrigin;
+  resolution: EnemyResolution | null;
+  behavior: EnemyBehavior;
+  behaviorTimer: number;
+  targetAngle: number | null;
   health: number;
   maxHealth: number;
   radialSpeed: number;
@@ -75,14 +100,12 @@ export interface EnemyState extends PolarPosition {
   turnRate: number;
   fireRadius: number;
   fireCooldown: number;
-  fireTimer: number;
   size: number;
   score: number;
   active: boolean;
   age: number;
   hitFlash: number;
   shielded: boolean;
-  hasFiredIntro: boolean;
   shieldRadius?: number;
 }
 
@@ -166,8 +189,8 @@ export interface GameState {
   currentWave: number;
   waveReached: number;
   killStreak: number;
-  perfectWave: boolean;
-  lastWavePerfect: boolean;
+  waveStats: WaveStats;
+  lastWaveOutcome: WaveOutcome | null;
   shake: number;
   runMetrics: RunMetrics;
 }
@@ -205,8 +228,8 @@ export interface ReadonlyGameState {
   readonly currentWave: number;
   readonly waveReached: number;
   readonly killStreak: number;
-  readonly perfectWave: boolean;
-  readonly lastWavePerfect: boolean;
+  readonly waveStats: Readonly<WaveStats>;
+  readonly lastWaveOutcome: Readonly<WaveOutcome> | null;
   readonly shake: number;
   readonly runMetrics: ReadonlyRunMetrics;
 }

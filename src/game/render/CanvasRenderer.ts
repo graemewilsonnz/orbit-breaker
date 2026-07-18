@@ -1,5 +1,5 @@
 import { CONFIG } from "../config";
-import { clamp, polarToCartesian, type Point } from "../core/geometry";
+import { clamp, distanceSquared, polarToCartesian, type Point } from "../core/geometry";
 import type { RandomSource } from "../core/rng";
 import type {
   ReadonlyBossState,
@@ -9,14 +9,13 @@ import type {
   ReadonlyPowerUpState,
   ReadonlyProjectileState,
 } from "../state";
+import { enemyContactRadius } from "../systems/collision";
 import { renderEffects } from "./effects";
 import { renderHud, renderOverlay } from "./hud";
 
 const PLAYER_DAMAGE_HITBOX_SCALE = CONFIG.hitboxes.playerDamageScale;
 const ENEMY_TARGET_HITBOX_SCALE = CONFIG.hitboxes.enemyTargetScale;
-const ENEMY_CONTACT_HITBOX_SCALE = CONFIG.hitboxes.enemyContactScale;
 const ENEMY_PROJECTILE_HITBOX_SCALE = CONFIG.hitboxes.enemyProjectileScale;
-const SPAWN_TELEGRAPH_SECONDS = 0.78;
 const PLAYER_HIT_FLASH_SECONDS = 0.18;
 
 function currentDevicePixelRatio(): number {
@@ -104,6 +103,8 @@ export class CanvasRenderer {
     for (const powerup of state.powerups) {
       drawPowerUp(context, powerup);
     }
+    drawEnemyThreatTelegraphs(context, state);
+    drawShieldNetwork(context, state);
     for (const enemy of state.enemies) {
       drawEnemy(context, enemy);
     }
@@ -240,9 +241,10 @@ function drawSpawnTelegraphs(context: CanvasRenderingContext2D, state: ReadonlyG
     return;
   }
 
+  const spawnTelegraphSeconds = CONFIG.telegraphs.enemySpawnSeconds;
   const upcoming = state.wave.queue.filter((spawn) => {
     const timeUntilSpawn = spawn.time - state.wave.elapsed;
-    return timeUntilSpawn >= 0 && timeUntilSpawn <= SPAWN_TELEGRAPH_SECONDS;
+    return timeUntilSpawn >= 0 && timeUntilSpawn <= spawnTelegraphSeconds;
   });
   if (upcoming.length === 0) {
     return;
@@ -254,7 +256,7 @@ function drawSpawnTelegraphs(context: CanvasRenderingContext2D, state: ReadonlyG
 
   for (const spawn of upcoming) {
     const timeUntilSpawn = Math.max(0, spawn.time - state.wave.elapsed);
-    const readiness = 1 - timeUntilSpawn / SPAWN_TELEGRAPH_SECONDS;
+    const readiness = 1 - timeUntilSpawn / spawnTelegraphSeconds;
     const markerRadius = CONFIG.arena.enemySpawnRadius + 58 * (1 - easeOutCubic(readiness));
     const laneWidth = 0.055 + readiness * 0.045;
     const color = enemyTypeColor(spawn.type);
@@ -286,9 +288,20 @@ function drawSpawnTelegraphs(context: CanvasRenderingContext2D, state: ReadonlyG
     context.strokeStyle = color;
     context.lineWidth = 2;
     context.beginPath();
-    context.arc(markerRadius, 0, 4 + readiness * 2.5, 0, CONFIG.TAU);
+    context.arc(markerRadius, 0, 10 + readiness * 2.5, 0, CONFIG.TAU);
     context.fill();
     context.stroke();
+
+    context.save();
+    context.translate(markerRadius, 0);
+    context.rotate(Math.PI / 2);
+    context.fillStyle = color;
+    context.strokeStyle = "rgba(255, 255, 255, 0.88)";
+    context.lineWidth = 1.25;
+    context.shadowColor = color;
+    context.shadowBlur = 7;
+    drawEnemyGlyph(context, spawn.type, 6.5 + readiness * 2, readiness);
+    context.restore();
 
     const bracketRadius = 82;
     const bracketSize = 5 + readiness * 3;
@@ -303,7 +316,7 @@ function drawSpawnTelegraphs(context: CanvasRenderingContext2D, state: ReadonlyG
 
   const strongestReadiness = Math.max(
     ...upcoming.map(
-      (spawn) => 1 - Math.max(0, spawn.time - state.wave.elapsed) / SPAWN_TELEGRAPH_SECONDS,
+      (spawn) => 1 - Math.max(0, spawn.time - state.wave.elapsed) / spawnTelegraphSeconds,
     ),
   );
   context.globalAlpha = 0.24 + strongestReadiness * 0.62;
@@ -319,6 +332,34 @@ function drawSpawnTelegraphs(context: CanvasRenderingContext2D, state: ReadonlyG
   );
   context.stroke();
   context.restore();
+}
+
+function drawEnemyGlyph(
+  context: CanvasRenderingContext2D,
+  type: ReadonlyEnemyState["type"],
+  size: number,
+  phase: number,
+): void {
+  switch (type) {
+    case "drifter":
+      drawDrifter(context, size);
+      break;
+    case "spiral":
+      drawSpiral(context, size, phase * 0.8);
+      break;
+    case "mine":
+      drawMine(context, size, phase * 0.9);
+      break;
+    case "shooter":
+      drawShooter(context, size);
+      break;
+    case "hunter":
+      drawHunter(context, size);
+      break;
+    case "shield":
+      drawShieldCarrier(context, size, phase * 0.7);
+      break;
+  }
 }
 
 function drawPlayer(context: CanvasRenderingContext2D, player: ReadonlyPlayerState): void {
@@ -603,6 +644,348 @@ function drawPowerUp(context: CanvasRenderingContext2D, powerup: ReadonlyPowerUp
   context.restore();
 }
 
+function drawEnemyThreatTelegraphs(
+  context: CanvasRenderingContext2D,
+  state: ReadonlyGameState,
+): void {
+  for (const enemy of state.enemies) {
+    if (!enemy.active || enemy.resolution !== null) {
+      continue;
+    }
+
+    if (
+      enemy.type === "mine" &&
+      (enemy.behavior === "arming" || enemy.behavior === "armed" || enemy.behavior === "release")
+    ) {
+      drawMineDangerTelegraph(context, enemy);
+    } else if (
+      enemy.type === "shooter" &&
+      (enemy.behavior === "windup" || enemy.behavior === "recovery")
+    ) {
+      drawShooterTelegraph(context, enemy, state);
+    } else if (enemy.type === "hunter") {
+      drawHunterTelegraph(context, enemy, state);
+    }
+  }
+}
+
+function drawMineDangerTelegraph(
+  context: CanvasRenderingContext2D,
+  enemy: ReadonlyEnemyState,
+): void {
+  const position = arenaPosition(enemy.angle, enemy.radius);
+  const dangerRadius = CONFIG.enemies.mine.dangerRadius;
+  const arming = enemy.behavior === "arming";
+  const progress = arming
+    ? clamp(1 - enemy.behaviorTimer / CONFIG.enemies.mine.warningTime, 0, 1)
+    : 1;
+  const pulse = 0.5 + Math.sin(enemy.age * 8) * 0.5;
+  const displayRadius = dangerRadius * (arming ? 0.74 + progress * 0.26 : 1 + pulse * 0.035);
+
+  context.save();
+  context.translate(position.x, position.y);
+  context.globalCompositeOperation = "lighter";
+  context.fillStyle = arming ? CONFIG.colors.warning : CONFIG.colors.mine;
+  context.globalAlpha = arming ? 0.055 + progress * 0.055 : 0.075 + pulse * 0.035;
+  context.beginPath();
+  context.arc(0, 0, displayRadius, 0, CONFIG.TAU);
+  context.fill();
+
+  context.strokeStyle = arming ? CONFIG.colors.warning : CONFIG.colors.mine;
+  context.globalAlpha = arming ? 0.42 + progress * 0.4 : 0.64 + pulse * 0.26;
+  context.lineWidth = arming ? 1.5 + progress * 1.5 : 2.25;
+  context.setLineDash(arming ? [5, 7] : [2, 5]);
+  context.lineDashOffset = -enemy.age * (arming ? 18 : 34);
+  context.beginPath();
+  context.arc(0, 0, displayRadius, 0, CONFIG.TAU);
+  context.stroke();
+  context.setLineDash([]);
+
+  if (arming) {
+    context.globalAlpha = 0.9;
+    context.lineWidth = 4;
+    context.beginPath();
+    context.arc(0, 0, dangerRadius + 5, -Math.PI / 2, -Math.PI / 2 + CONFIG.TAU * progress);
+    context.stroke();
+  } else {
+    context.globalAlpha = 0.84;
+    context.lineWidth = 2;
+    for (let index = 0; index < 4; index += 1) {
+      context.save();
+      context.rotate((index * CONFIG.TAU) / 4);
+      context.beginPath();
+      context.moveTo(dangerRadius - 8, 0);
+      context.lineTo(dangerRadius + 7, 0);
+      context.stroke();
+      context.restore();
+    }
+  }
+  context.restore();
+}
+
+function drawShooterTelegraph(
+  context: CanvasRenderingContext2D,
+  enemy: ReadonlyEnemyState,
+  state: ReadonlyGameState,
+): void {
+  const position = arenaPosition(enemy.angle, enemy.radius);
+
+  if (enemy.behavior === "recovery") {
+    const recoveryProgress = clamp(1 - enemy.behaviorTimer / enemy.fireCooldown, 0, 1);
+    context.save();
+    context.translate(position.x, position.y);
+    context.strokeStyle = CONFIG.colors.shooter;
+    context.globalAlpha = 0.28 + recoveryProgress * 0.32;
+    context.lineWidth = 2;
+    context.setLineDash([3, 5]);
+    context.lineDashOffset = enemy.age * 22;
+    context.beginPath();
+    context.arc(0, 0, enemy.size + 12, -Math.PI / 2, -Math.PI / 2 + CONFIG.TAU * recoveryProgress);
+    context.stroke();
+    context.setLineDash([]);
+    context.globalAlpha = 0.4;
+    context.beginPath();
+    context.moveTo(-enemy.size * 0.75, enemy.size + 4);
+    context.lineTo(-enemy.size * 1.1, enemy.size + 11);
+    context.moveTo(enemy.size * 0.75, enemy.size + 4);
+    context.lineTo(enemy.size * 1.1, enemy.size + 11);
+    context.stroke();
+    context.restore();
+    return;
+  }
+
+  const warningTime = CONFIG.enemies.shooter.warningTime;
+  const progress = clamp(1 - enemy.behaviorTimer / warningTime, 0, 1);
+  // Draw the projectile's actual radial lane. targetAngle is the committed
+  // tracking goal; enemy.angle is where the shot will travel when released.
+  const target = arenaPosition(enemy.angle, state.player.radius);
+
+  context.save();
+  context.globalCompositeOperation = "lighter";
+  context.strokeStyle = CONFIG.colors.warning;
+  context.lineCap = "round";
+  context.globalAlpha = 0.12 + progress * 0.18;
+  context.lineWidth = 9 + progress * 4;
+  context.beginPath();
+  context.moveTo(position.x, position.y);
+  context.lineTo(target.x, target.y);
+  context.stroke();
+
+  context.globalAlpha = 0.48 + progress * 0.45;
+  context.lineWidth = 1.5 + progress * 1.5;
+  context.setLineDash(progress > 0.72 ? [] : [7, 6]);
+  context.lineDashOffset = -enemy.age * 30;
+  context.beginPath();
+  context.moveTo(position.x, position.y);
+  context.lineTo(target.x, target.y);
+  context.stroke();
+  context.setLineDash([]);
+
+  context.translate(target.x, target.y);
+  context.globalAlpha = 0.6 + progress * 0.35;
+  context.lineWidth = 2;
+  const reticleRadius = state.player.size + 8 - progress * 3;
+  context.beginPath();
+  context.arc(0, 0, reticleRadius, 0, CONFIG.TAU);
+  context.stroke();
+  for (let index = 0; index < 4; index += 1) {
+    context.save();
+    context.rotate((index * CONFIG.TAU) / 4);
+    context.beginPath();
+    context.moveTo(reticleRadius + 3, 0);
+    context.lineTo(reticleRadius + 10, 0);
+    context.stroke();
+    context.restore();
+  }
+  context.restore();
+
+  context.save();
+  context.translate(position.x, position.y);
+  context.strokeStyle = CONFIG.colors.warning;
+  context.globalAlpha = 0.78;
+  context.lineWidth = 3;
+  context.beginPath();
+  context.arc(0, 0, enemy.size + 10, -Math.PI / 2, -Math.PI / 2 + CONFIG.TAU * progress);
+  context.stroke();
+  context.restore();
+}
+
+function drawHunterTelegraph(
+  context: CanvasRenderingContext2D,
+  enemy: ReadonlyEnemyState,
+  state: ReadonlyGameState,
+): void {
+  const position = arenaPosition(enemy.angle, enemy.radius);
+
+  if (enemy.behavior === "tracking") {
+    const playerPosition = arenaPosition(state.player.angle, state.player.radius);
+    const proximity = clamp(enemy.radius / CONFIG.enemies.hunter.lockRadius, 0, 1);
+    context.save();
+    context.strokeStyle = CONFIG.colors.hunter;
+    context.globalAlpha = 0.12 + proximity * 0.3;
+    context.lineWidth = 1.25 + proximity;
+    context.setLineDash([2, 8]);
+    context.lineDashOffset = -enemy.age * 22;
+    context.beginPath();
+    context.moveTo(position.x, position.y);
+    context.lineTo(playerPosition.x, playerPosition.y);
+    context.stroke();
+    context.setLineDash([]);
+    context.globalAlpha = 0.22 + proximity * 0.25;
+    context.beginPath();
+    context.arc(playerPosition.x, playerPosition.y, state.player.size + 12, -0.7, 0.7);
+    context.stroke();
+    context.restore();
+    return;
+  }
+
+  const laneAngle = enemy.targetAngle ?? enemy.angle;
+  const locked = enemy.behavior === "locked";
+  const warningProgress = locked
+    ? clamp(1 - enemy.behaviorTimer / CONFIG.enemies.hunter.warningTime, 0, 1)
+    : 1;
+  const laneStart = locked ? enemy.radius + enemy.size : Math.max(0, enemy.radius - 62);
+  const laneEnd = locked
+    ? CONFIG.arena.outerKillRadius + 18
+    : Math.min(CONFIG.arena.outerKillRadius + 18, enemy.radius + 92);
+
+  context.save();
+  context.translate(CONFIG.arena.centerX, CONFIG.arena.centerY);
+  context.rotate(laneAngle);
+  context.globalCompositeOperation = "lighter";
+  context.fillStyle = locked ? CONFIG.colors.warning : CONFIG.colors.hunter;
+  context.globalAlpha = locked ? 0.045 + warningProgress * 0.08 : 0.11;
+  context.fillRect(laneStart, -enemy.size * 0.75, laneEnd - laneStart, enemy.size * 1.5);
+  context.strokeStyle = locked ? CONFIG.colors.warning : CONFIG.colors.hunter;
+  context.globalAlpha = locked ? 0.42 + warningProgress * 0.48 : 0.68;
+  context.lineWidth = locked ? 1.5 + warningProgress : 2;
+  context.setLineDash(locked && warningProgress < 0.7 ? [8, 6] : []);
+  context.lineDashOffset = -enemy.age * 38;
+  context.beginPath();
+  context.moveTo(laneStart, -enemy.size * 0.75);
+  context.lineTo(laneEnd, -enemy.size * 0.75);
+  context.moveTo(laneStart, enemy.size * 0.75);
+  context.lineTo(laneEnd, enemy.size * 0.75);
+  context.stroke();
+  context.setLineDash([]);
+
+  for (let radius = laneStart + 28; radius < laneEnd; radius += 44) {
+    context.beginPath();
+    context.moveTo(radius - 7, -5);
+    context.lineTo(radius, 0);
+    context.lineTo(radius - 7, 5);
+    context.stroke();
+  }
+  context.restore();
+
+  if (locked) {
+    const target = arenaPosition(laneAngle, state.player.radius);
+    context.save();
+    context.translate(target.x, target.y);
+    context.strokeStyle = CONFIG.colors.warning;
+    context.globalAlpha = 0.55 + warningProgress * 0.4;
+    context.lineWidth = 2;
+    context.beginPath();
+    context.arc(0, 0, state.player.size + 10 - warningProgress * 3, 0, CONFIG.TAU);
+    context.stroke();
+    context.restore();
+  }
+}
+
+function drawShieldNetwork(context: CanvasRenderingContext2D, state: ReadonlyGameState): void {
+  const carriers = state.enemies.filter(
+    (enemy) =>
+      enemy.active &&
+      enemy.resolution === null &&
+      enemy.type === "shield" &&
+      enemy.shieldRadius !== undefined,
+  );
+  if (carriers.length === 0) {
+    return;
+  }
+
+  context.save();
+  context.globalCompositeOperation = "lighter";
+  for (const carrier of carriers) {
+    const position = arenaPosition(carrier.angle, carrier.radius);
+    const shieldRadius = carrier.shieldRadius ?? 0;
+    const pulse = 0.5 + Math.sin(carrier.age * 4.5) * 0.5;
+
+    context.fillStyle = CONFIG.colors.shieldAura;
+    context.globalAlpha = 0.15 + pulse * 0.06;
+    context.beginPath();
+    context.arc(position.x, position.y, shieldRadius, 0, CONFIG.TAU);
+    context.fill();
+
+    context.strokeStyle = CONFIG.colors.shield;
+    context.globalAlpha = 0.38 + pulse * 0.2;
+    context.lineWidth = 1.5;
+    context.setLineDash([7, 6]);
+    context.lineDashOffset = -carrier.age * 18;
+    context.beginPath();
+    context.arc(position.x, position.y, shieldRadius, 0, CONFIG.TAU);
+    context.stroke();
+    context.setLineDash([]);
+  }
+
+  const protectedEnemies = state.enemies.filter(
+    (enemy) =>
+      enemy.active && enemy.resolution === null && enemy.type !== "shield" && enemy.shielded,
+  );
+  for (const enemy of protectedEnemies) {
+    const targetPosition = arenaPosition(enemy.angle, enemy.radius);
+    let source: ReadonlyEnemyState | null = null;
+    let sourcePosition: Point | null = null;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    for (const carrier of carriers) {
+      const carrierPosition = arenaPosition(carrier.angle, carrier.radius);
+      const shieldRadius = carrier.shieldRadius ?? 0;
+      const separation = distanceSquared(carrierPosition, targetPosition);
+      if (separation <= shieldRadius * shieldRadius && separation < closestDistance) {
+        closestDistance = separation;
+        source = carrier;
+        sourcePosition = carrierPosition;
+      }
+    }
+
+    if (source === null || sourcePosition === null) {
+      continue;
+    }
+
+    const pulse = 0.5 + Math.sin(source.age * 7 + enemy.radius * 0.04) * 0.5;
+    context.strokeStyle = CONFIG.colors.shieldAura;
+    context.globalAlpha = 0.45;
+    context.lineWidth = 6;
+    context.beginPath();
+    context.moveTo(sourcePosition.x, sourcePosition.y);
+    context.lineTo(targetPosition.x, targetPosition.y);
+    context.stroke();
+
+    context.strokeStyle = CONFIG.colors.shield;
+    context.globalAlpha = 0.68 + pulse * 0.28;
+    context.lineWidth = 1.5;
+    context.beginPath();
+    context.moveTo(sourcePosition.x, sourcePosition.y);
+    context.lineTo(targetPosition.x, targetPosition.y);
+    context.stroke();
+
+    const transfer = 0.28 + pulse * 0.44;
+    context.fillStyle = "rgba(255, 255, 255, 0.92)";
+    context.globalAlpha = 0.76;
+    context.beginPath();
+    context.arc(
+      sourcePosition.x + (targetPosition.x - sourcePosition.x) * transfer,
+      sourcePosition.y + (targetPosition.y - sourcePosition.y) * transfer,
+      2.5,
+      0,
+      CONFIG.TAU,
+    );
+    context.fill();
+  }
+  context.restore();
+}
+
 function enemyTypeColor(type: ReadonlyEnemyState["type"]): string {
   switch (type) {
     case "drifter":
@@ -675,7 +1058,7 @@ function drawEnemy(context: CanvasRenderingContext2D, enemy: ReadonlyEnemyState)
 
   switch (enemy.type) {
     case "drifter":
-      drawPolygon(context, 4, enemy.size, Math.PI / 4);
+      drawDrifter(context, enemy.size);
       break;
     case "spiral":
       drawSpiral(context, enemy.size, enemy.age);
@@ -710,6 +1093,23 @@ function drawEnemy(context: CanvasRenderingContext2D, enemy: ReadonlyEnemyState)
   context.restore();
 }
 
+function drawDrifter(context: CanvasRenderingContext2D, size: number): void {
+  drawPolygon(context, 4, size, Math.PI / 4);
+  context.fillStyle = "rgba(5, 7, 13, 0.78)";
+  context.beginPath();
+  context.moveTo(0, -size * 0.48);
+  context.lineTo(size * 0.2, 0);
+  context.lineTo(0, size * 0.48);
+  context.lineTo(-size * 0.2, 0);
+  context.closePath();
+  context.fill();
+  context.strokeStyle = "rgba(255, 255, 255, 0.82)";
+  context.beginPath();
+  context.moveTo(-size * 0.42, 0);
+  context.lineTo(size * 0.42, 0);
+  context.stroke();
+}
+
 function drawPolygon(
   context: CanvasRenderingContext2D,
   sides: number,
@@ -734,18 +1134,26 @@ function drawPolygon(
 
 function drawSpiral(context: CanvasRenderingContext2D, size: number, age: number): void {
   context.beginPath();
-  context.moveTo(0, -size);
-  context.lineTo(size * 0.9, size * 0.8);
-  context.lineTo(0, size * 0.42);
-  context.lineTo(-size * 0.9, size * 0.8);
+  context.moveTo(0, -size * 1.08);
+  context.lineTo(size * 0.92, -size * 0.08);
+  context.lineTo(size * 0.32, size * 0.06);
+  context.lineTo(size * 0.68, size * 0.92);
+  context.lineTo(-size * 0.08, size * 0.44);
+  context.lineTo(-size * 0.9, size * 0.75);
+  context.lineTo(-size * 0.48, 0);
   context.closePath();
   context.fill();
   context.stroke();
   context.rotate(age * 4);
   context.strokeStyle = "rgba(255, 255, 255, 0.7)";
+  context.lineWidth = 1.75;
   context.beginPath();
-  context.arc(0, 0, size * 0.55, 0.4, Math.PI * 1.55);
+  context.arc(0, 0, size * 0.5, 0.35, Math.PI * 1.55);
   context.stroke();
+  context.fillStyle = "rgba(5, 7, 13, 0.82)";
+  context.beginPath();
+  context.arc(0, 0, size * 0.16, 0, CONFIG.TAU);
+  context.fill();
 }
 
 function drawMine(context: CanvasRenderingContext2D, size: number, age: number): void {
@@ -765,9 +1173,26 @@ function drawMine(context: CanvasRenderingContext2D, size: number, age: number):
   context.closePath();
   context.fill();
   context.stroke();
+  context.fillStyle = "rgba(5, 7, 13, 0.84)";
+  context.beginPath();
+  context.arc(0, 0, size * 0.42, 0, CONFIG.TAU);
+  context.fill();
+  context.strokeStyle = "rgba(255, 255, 255, 0.88)";
+  context.lineWidth = 1.5;
+  context.beginPath();
+  context.arc(0, 0, size * 0.24, 0, CONFIG.TAU);
+  context.stroke();
 }
 
 function drawShooter(context: CanvasRenderingContext2D, size: number): void {
+  context.beginPath();
+  context.moveTo(-size * 0.75, -size * 0.45);
+  context.lineTo(-size * 1.08, 0);
+  context.lineTo(-size * 0.75, size * 0.45);
+  context.moveTo(size * 0.75, -size * 0.45);
+  context.lineTo(size * 1.08, 0);
+  context.lineTo(size * 0.75, size * 0.45);
+  context.stroke();
   context.beginPath();
   context.rect(-size * 0.75, -size * 0.75, size * 1.5, size * 1.5);
   context.fill();
@@ -775,16 +1200,35 @@ function drawShooter(context: CanvasRenderingContext2D, size: number): void {
   context.fillStyle = "rgba(5, 7, 13, 0.72)";
   context.fillRect(-5, -size - 7, 10, size);
   context.strokeRect(-5, -size - 7, 10, size);
+  context.beginPath();
+  context.arc(0, 0, size * 0.3, 0, CONFIG.TAU);
+  context.fill();
+  context.stroke();
+  context.beginPath();
+  context.moveTo(-size * 0.42, 0);
+  context.lineTo(size * 0.42, 0);
+  context.moveTo(0, -size * 0.42);
+  context.lineTo(0, size * 0.42);
+  context.stroke();
 }
 
 function drawHunter(context: CanvasRenderingContext2D, size: number): void {
   context.beginPath();
-  context.moveTo(0, -size * 1.18);
-  context.lineTo(size, size * 0.86);
-  context.lineTo(0, size * 0.35);
-  context.lineTo(-size, size * 0.86);
+  context.moveTo(0, -size * 1.28);
+  context.lineTo(size * 0.88, size * 0.62);
+  context.lineTo(size * 0.34, size * 0.42);
+  context.lineTo(size * 0.58, size * 1.02);
+  context.lineTo(0, size * 0.68);
+  context.lineTo(-size * 0.58, size * 1.02);
+  context.lineTo(-size * 0.34, size * 0.42);
+  context.lineTo(-size * 0.88, size * 0.62);
   context.closePath();
   context.fill();
+  context.stroke();
+  context.strokeStyle = "rgba(255, 255, 255, 0.86)";
+  context.beginPath();
+  context.moveTo(0, -size * 0.76);
+  context.lineTo(0, size * 0.48);
   context.stroke();
 }
 
@@ -794,6 +1238,19 @@ function drawShieldCarrier(context: CanvasRenderingContext2D, size: number, age:
   context.lineWidth = 4;
   context.beginPath();
   context.arc(0, 0, size + 7 + Math.sin(age * 3) * 2, 0, CONFIG.TAU);
+  context.stroke();
+  context.fillStyle = "rgba(5, 7, 13, 0.78)";
+  context.strokeStyle = "rgba(255, 255, 255, 0.9)";
+  context.lineWidth = 1.5;
+  context.beginPath();
+  context.moveTo(0, -size * 0.58);
+  context.lineTo(size * 0.48, -size * 0.28);
+  context.lineTo(size * 0.38, size * 0.34);
+  context.lineTo(0, size * 0.64);
+  context.lineTo(-size * 0.38, size * 0.34);
+  context.lineTo(-size * 0.48, -size * 0.28);
+  context.closePath();
+  context.fill();
   context.stroke();
 }
 
@@ -921,7 +1378,7 @@ function drawHitboxes(context: CanvasRenderingContext2D, state: ReadonlyGameStat
     drawHitboxCircle(
       context,
       position,
-      enemy.size * ENEMY_CONTACT_HITBOX_SCALE,
+      enemyContactRadius(enemy),
       CONFIG.colors.enemyBullet,
       [1, 3],
     );

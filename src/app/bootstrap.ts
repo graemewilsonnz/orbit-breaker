@@ -175,6 +175,9 @@ function processDebugCommands(runtime: Runtime): void {
       case "set-time-scale":
         runtime.timeScale = command.scale;
         break;
+      case "set-dash-cooldown":
+        runtime.game.setDebugDashCooldown(command.seconds);
+        break;
       case "single-step":
         runtime.singleStepRequested = true;
         break;

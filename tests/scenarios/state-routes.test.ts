@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { Game } from "../../src/game/Game";
+import { CONFIG } from "../../src/game/config";
 import { FIXED_STEP_SECONDS } from "../../src/game/core/clock";
 import { SeededRng } from "../../src/game/core/rng";
 import { EMPTY_INPUT_SNAPSHOT, createInputSnapshot } from "../../src/game/systems/input";
+import { createProjectile } from "../../src/game/systems/weapons";
 
 function createGame(): Game {
   return new Game({ seed: "state-routes", presentationRandom: new SeededRng("visual") });
@@ -108,6 +110,46 @@ describe("game state routes", () => {
       currentWave: 1,
       score: 0,
       lives: 3,
+    });
+  });
+
+  it("gives a fatal boss beam precedence over a final player shot in the same step", () => {
+    const game = createGame();
+    game.startBossScenario();
+    const boss = game.state.boss;
+    expect(boss).not.toBeNull();
+    if (boss === null) {
+      return;
+    }
+
+    game.state.player.lives = 1;
+    boss.health = 1;
+    boss.phase = 3;
+    boss.phaseAwarded = { 2: true, 3: true };
+    boss.beams.push({
+      angle: game.state.player.angle,
+      width: 0.2,
+      timer: CONFIG.boss.warningTime,
+      active: true,
+    });
+    game.state.playerShots.push(
+      createProjectile({
+        owner: "player",
+        angle: boss.rotation + Math.PI / 4,
+        radius: CONFIG.arena.bossHitRadius,
+        radialSpeed: 0,
+        damage: 1,
+        size: CONFIG.projectiles.playerSize,
+        color: CONFIG.colors.playerBullet,
+      }),
+    );
+
+    game.step(FIXED_STEP_SECONDS, EMPTY_INPUT_SNAPSHOT);
+
+    expect(game.snapshot()).toMatchObject({
+      state: "gameOver",
+      lives: 0,
+      bossHealth: 1,
     });
   });
 });

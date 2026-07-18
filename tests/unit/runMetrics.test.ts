@@ -52,10 +52,13 @@ describe("M1 run metrics", () => {
       "boss-beam": 0,
     });
     expect(metrics.lastDamageSource).toBe("enemy-projectile");
+    expect(metrics.lastDamageEnemyType).toBeNull();
     expect(metrics.waveTimings).toEqual([
       { wave: 1, seconds: 12.5 },
       { wave: 2, seconds: 16.75 },
     ]);
     expect(damageSourceLabel("boss-beam")).toBe("BOSS BEAM");
+    expect(damageSourceLabel("enemy-contact", "hunter")).toBe("HUNTER BREACH");
+    expect(damageSourceLabel("enemy-projectile", "shooter")).toBe("SHOOTER BOLT");
   });
 });

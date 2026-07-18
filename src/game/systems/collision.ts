@@ -7,9 +7,7 @@ import { playerPosition, takePlayerHit } from "./player";
 import { applyPowerUp, powerUpPosition, type PowerUpHost } from "./powerups";
 import { projectilePosition } from "./weapons";
 
-export interface CollisionHost extends SimulationHost, PowerUpHost {
-  registerKill(enemy: EnemyState, allowDrop: boolean): void;
-}
+export interface CollisionHost extends SimulationHost, PowerUpHost {}
 
 export function updateShieldLinks(host: CollisionHost): void {
   const carriers = host.state.enemies.filter((enemy) => enemy.active && enemy.type === "shield");
@@ -75,8 +73,10 @@ export function handleShotEnemyCollisions(host: CollisionHost): void {
       }
 
       if (damageEnemy(enemy, shot.damage)) {
-        enemy.active = false;
-        host.registerKill(enemy, true);
+        host.resolveEnemy(enemy, "shot");
+        if (enemy.type === "shield") {
+          updateShieldLinks(host);
+        }
       } else {
         host.emitAudio("enemyHit");
       }
@@ -125,7 +125,7 @@ export function handlePlayerDangerCollisions(host: CollisionHost): void {
       })
     ) {
       bullet.active = false;
-      takePlayerHit(host.state.player, host, "enemy-projectile");
+      takePlayerHit(host.state.player, host, "enemy-projectile", bullet.sourceEnemyType);
     }
   }
 
@@ -138,11 +138,14 @@ export function handlePlayerDangerCollisions(host: CollisionHost): void {
       circlesOverlap(playerCircle, {
         x: point.x,
         y: point.y,
-        radius: enemy.size * CONFIG.hitboxes.enemyContactScale,
+        radius: enemyContactRadius(enemy),
       })
     ) {
-      enemy.active = false;
-      takePlayerHit(host.state.player, host, "enemy-contact");
+      const resolved = host.resolveEnemy(enemy, "contact");
+      if (!resolved) {
+        continue;
+      }
+      takePlayerHit(host.state.player, host, "enemy-contact", enemy.type);
       host.addEffect({
         type: "burst",
         x: point.x,
@@ -153,6 +156,13 @@ export function handlePlayerDangerCollisions(host: CollisionHost): void {
       });
     }
   }
+}
+
+export function enemyContactRadius(enemy: Readonly<EnemyState>): number {
+  if (enemy.type === "mine" && (enemy.behavior === "armed" || enemy.behavior === "release")) {
+    return CONFIG.enemies.mine.dangerRadius;
+  }
+  return enemy.size * CONFIG.hitboxes.enemyContactScale;
 }
 
 export function handlePowerUpCollisions(host: CollisionHost): void {

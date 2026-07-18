@@ -22,6 +22,7 @@ import {
   asReadonlyGameState,
   type EffectState,
   type EnemyState,
+  type EnemyResolution,
   type GameState,
   type GameStateId,
   type PausableGameStateId,
@@ -42,8 +43,14 @@ import { createPlayerState, playerPosition, resetPlayer, updatePlayer } from "./
 import { chooseDropType, createPowerUp, updatePowerUp } from "./systems/powerups";
 import { startWave, updateWave } from "./systems/spawning";
 import { projectilePosition, updateProjectile } from "./systems/weapons";
+import {
+  createWaveStats,
+  deriveWaveOutcome,
+  type WaveOutcome,
+  type WaveStats,
+} from "./waveOutcomes";
 
-export const DEFAULT_RUN_SEED = "orbit-breaker-m1";
+export const DEFAULT_RUN_SEED = "orbit-breaker-m2";
 
 export interface GameOptions {
   readonly seed?: RandomSeed;
@@ -71,6 +78,8 @@ export interface GameSnapshot {
   readonly pendingSpawns: number;
   readonly waveElapsed: number;
   readonly dashCooldown: number;
+  readonly waveStats: Readonly<WaveStats>;
+  readonly lastWaveOutcome: Readonly<WaveOutcome> | null;
   readonly run: RunSummarySnapshot;
 }
 
@@ -188,6 +197,7 @@ export class Game implements CollisionHost {
   startAtWave(waveNumber: number): void {
     this.gameplayRandom = new SeededRng(this.runSeed);
     resetPlayer(this.state.player);
+    this.resolveAllEnemies("transition");
     this.state.enemies = [];
     this.state.playerShots = [];
     this.state.enemyBullets = [];
@@ -197,8 +207,8 @@ export class Game implements CollisionHost {
     this.state.currentWave = waveNumber;
     this.state.waveReached = waveNumber;
     this.state.killStreak = 0;
-    this.state.perfectWave = true;
-    this.state.lastWavePerfect = false;
+    this.state.waveStats = createWaveStats();
+    this.state.lastWaveOutcome = null;
     this.state.shake = 0;
     this.state.stateTimer = 0;
     this.state.pausedFrom = "playing";
@@ -238,6 +248,15 @@ export class Game implements CollisionHost {
 
   isDebugInvulnerable(): boolean {
     return this.debugInvulnerable;
+  }
+
+  setDebugDashCooldown(seconds: number): void {
+    if (!Number.isFinite(seconds) || seconds < 0 || seconds > CONFIG.player.dashCooldown) {
+      throw new RangeError(
+        `Debug dash cooldown must be between 0 and ${CONFIG.player.dashCooldown}`,
+      );
+    }
+    this.state.player.dashCooldown = seconds;
   }
 
   forceState(state: "gameOver" | "victory"): void {
@@ -287,12 +306,17 @@ export class Game implements CollisionHost {
   }
 
   spawnEnemy(type: EnemyType, angle: number, overrides?: EnemyOverrides): void {
-    this.state.enemies.push(createEnemy(type, angle, this.gameplayRandom, overrides));
+    const enemy = createEnemy(type, angle, this.gameplayRandom, overrides);
+    this.state.enemies.push(enemy);
+    if (enemy.origin === "wave") {
+      this.state.waveStats.requiredEnemiesSpawned += 1;
+    }
     this.events.emit("metric", {
       name: "enemy-spawned",
       value: 1,
-      tags: { type, wave: this.state.currentWave },
+      tags: { origin: enemy.origin, type, wave: this.state.currentWave },
     });
+    this.emitAudio(enemySignalCue(type));
   }
 
   spawnPowerUp(type: PowerUpType, angle = this.state.player.angle): void {
@@ -312,7 +336,49 @@ export class Game implements CollisionHost {
     this.state.player.score += Math.round(amount);
   }
 
-  registerKill(enemy: EnemyState, allowDrop: boolean): void {
+  resolveEnemy(enemy: EnemyState, resolution: EnemyResolution): boolean {
+    if (!enemy.active || enemy.resolution !== null) {
+      return false;
+    }
+
+    enemy.active = false;
+    enemy.resolution = resolution;
+
+    if (enemy.origin === "wave") {
+      switch (resolution) {
+        case "shot":
+          this.state.waveStats.enemiesDestroyed += 1;
+          break;
+        case "bomb":
+          this.state.waveStats.enemiesDestroyed += 1;
+          this.state.waveStats.enemiesKilledByBomb += 1;
+          break;
+        case "contact":
+          this.state.waveStats.enemiesBreached += 1;
+          break;
+        case "escaped":
+          this.state.waveStats.enemiesEscaped += 1;
+          break;
+        case "transition":
+          break;
+      }
+    }
+
+    if (resolution === "shot" || resolution === "bomb") {
+      this.registerKill(enemy, resolution === "shot");
+    }
+    if (enemy.type === "shield") {
+      updateShieldLinks(this);
+    }
+    this.events.emit("metric", {
+      name: "enemy-resolved",
+      value: 1,
+      tags: { origin: enemy.origin, resolution, type: enemy.type, wave: this.state.currentWave },
+    });
+    return true;
+  }
+
+  private registerKill(enemy: EnemyState, allowDrop: boolean): void {
     this.state.runMetrics.enemiesDestroyed += 1;
     this.addScore(enemy.score, enemy, false);
     this.state.killStreak += 1;
@@ -346,11 +412,11 @@ export class Game implements CollisionHost {
     }
 
     this.state.player.bombCount -= 1;
+    if (this.state.boss === null) {
+      this.state.waveStats.bombUsed = true;
+    }
     for (const enemy of this.state.enemies) {
-      if (enemy.active) {
-        enemy.active = false;
-        this.registerKill(enemy, false);
-      }
+      this.resolveEnemy(enemy, "bomb");
     }
     this.state.enemyBullets = [];
 
@@ -385,9 +451,11 @@ export class Game implements CollisionHost {
     }
   }
 
-  onPlayerDamaged(source: DamageSource): void {
-    recordDamage(this.state.runMetrics, source);
-    this.state.perfectWave = false;
+  onPlayerDamaged(source: DamageSource, enemyType: EnemyType | null = null): void {
+    recordDamage(this.state.runMetrics, source, enemyType);
+    if (this.state.boss === null) {
+      this.state.waveStats.playerDamaged = true;
+    }
     this.state.killStreak = 0;
     this.state.player.multiplier = 1;
     this.clearNearbyEnemyBullets(125);
@@ -425,7 +493,7 @@ export class Game implements CollisionHost {
     }
     this.state.stateTimer = 0;
     this.state.enemyBullets = [];
-    this.state.enemies = [];
+    this.resolveAllEnemies("transition");
     this.state.powerups = [];
     this.addEffect({
       type: "bossPulse",
@@ -462,6 +530,9 @@ export class Game implements CollisionHost {
       pendingSpawns: this.state.wave.queue.length,
       waveElapsed: this.state.wave.elapsed,
       dashCooldown: this.state.player.dashCooldown,
+      waveStats: { ...this.state.waveStats },
+      lastWaveOutcome:
+        this.state.lastWaveOutcome === null ? null : { ...this.state.lastWaveOutcome },
       run: createRunSummary(this.state.runMetrics),
     };
   }
@@ -478,8 +549,8 @@ export class Game implements CollisionHost {
       powerups: this.state.powerups,
       boss: this.state.boss,
       killStreak: this.state.killStreak,
-      perfectWave: this.state.perfectWave,
-      lastWavePerfect: this.state.lastWavePerfect,
+      waveStats: this.state.waveStats,
+      lastWaveOutcome: this.state.lastWaveOutcome,
       runMetrics: this.state.runMetrics,
     });
   }
@@ -513,6 +584,10 @@ export class Game implements CollisionHost {
     if (this.state.boss !== null) {
       updateBoss(this.state.boss, dt, this);
     }
+    if (this.state.player.lives <= 0) {
+      this.gameOver();
+      return;
+    }
     for (const projectile of this.state.playerShots) {
       updateProjectile(projectile, dt);
     }
@@ -535,7 +610,7 @@ export class Game implements CollisionHost {
       updateWave(this.state.wave, dt, {
         bossActive: this.state.boss !== null,
         enemyCount: this.state.enemies.length,
-        spawnEnemy: (type, angle) => this.spawnEnemy(type, angle),
+        spawnEnemy: (type, angle) => this.spawnEnemy(type, angle, { origin: "wave" }),
         completeWave: () => this.completeWave(),
       });
     }
@@ -587,11 +662,23 @@ export class Game implements CollisionHost {
       return;
     }
 
-    this.state.lastWavePerfect = this.state.perfectWave;
+    const outcome = deriveWaveOutcome(this.state.waveStats, this.state.player.lives > 0);
+    this.state.lastWaveOutcome = outcome;
     recordWaveTiming(this.state.runMetrics, this.state.currentWave);
-    if (this.state.perfectWave) {
+    if (outcome.perfect) {
       this.addScore(CONFIG.scoring.perfectWaveBonus, null, true);
     }
+    this.events.emit("metric", {
+      name: "wave-outcome",
+      value: outcome.perfect ? 1 : 0,
+      tags: {
+        bombUsed: this.state.waveStats.bombUsed,
+        fullClear: outcome.fullClear,
+        noDamage: outcome.noDamage,
+        perfect: outcome.perfect,
+        wave: this.state.currentWave,
+      },
+    });
     if (this.state.currentWave === 8) {
       this.spawnPreBossDrops();
     }
@@ -610,7 +697,7 @@ export class Game implements CollisionHost {
 
     this.state.currentWave += 1;
     this.state.waveReached = Math.max(this.state.waveReached, this.state.currentWave);
-    this.state.perfectWave = true;
+    this.state.waveStats = createWaveStats();
     startWave(this.state.wave, this.state.currentWave, this.gameplayRandom);
     this.state.runMetrics.waveStartedSeconds = this.state.runMetrics.elapsedSeconds;
     this.transitionTo("playing");
@@ -651,6 +738,8 @@ export class Game implements CollisionHost {
 
   private gameOver(): void {
     this.state.stateTimer = 0;
+    this.resolveAllEnemies("transition");
+    this.state.enemyBullets = [];
     this.emitAudio("gameOver");
     this.transitionTo("gameOver");
   }
@@ -682,6 +771,13 @@ export class Game implements CollisionHost {
   private emitUiNotice(kind: GameplayEventMap["ui-notice"]["kind"]): void {
     this.events.emit("ui-notice", { kind });
   }
+
+  private resolveAllEnemies(resolution: EnemyResolution): void {
+    for (const enemy of this.state.enemies) {
+      this.resolveEnemy(enemy, resolution);
+    }
+    this.state.enemies = this.state.enemies.filter((enemy) => enemy.active);
+  }
 }
 
 function createInitialState(presentationRandom: RandomSource): GameState {
@@ -707,8 +803,8 @@ function createInitialState(presentationRandom: RandomSource): GameState {
     currentWave: 1,
     waveReached: 1,
     killStreak: 0,
-    perfectWave: true,
-    lastWavePerfect: false,
+    waveStats: createWaveStats(),
+    lastWaveOutcome: null,
     shake: 0,
     runMetrics: createRunMetrics(),
   };
@@ -730,4 +826,21 @@ function createRunSummary(metrics: ReadonlyRunMetrics): RunSummarySnapshot {
     waveTimings: metrics.waveTimings.map((timing) => ({ ...timing })),
     accuracyPercent: accuracyPercent(metrics),
   };
+}
+
+function enemySignalCue(type: EnemyType): AudioCue {
+  switch (type) {
+    case "drifter":
+      return "drifterSignal";
+    case "spiral":
+      return "spiralSignal";
+    case "mine":
+      return "mineSignal";
+    case "shooter":
+      return "shooterSignal";
+    case "hunter":
+      return "hunterSignal";
+    case "shield":
+      return "shieldSignal";
+  }
 }

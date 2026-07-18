@@ -1,7 +1,16 @@
+import type { AudioCue } from "../core/events";
+
 export const SOUND_NAMES = [
   "fire",
   "enemyHit",
   "enemyDestroyed",
+  "drifterSignal",
+  "spiralSignal",
+  "mineSignal",
+  "shooterSignal",
+  "hunterSignal",
+  "shieldSignal",
+  "shooterFire",
   "playerHit",
   "powerup",
   "waveClear",
@@ -9,9 +18,9 @@ export const SOUND_NAMES = [
   "gameOver",
   "dash",
   "bomb",
-] as const;
+] as const satisfies readonly AudioCue[];
 
-export type SoundName = (typeof SOUND_NAMES)[number];
+export type SoundName = AudioCue;
 
 type OscillatorShape = OscillatorType;
 
@@ -61,6 +70,34 @@ export class AudioEngine {
         this.tone(150, 0.09, "sawtooth", 0.045, -85);
         this.noise(0.07, 0.025);
         break;
+      case "drifterSignal":
+        this.tone(265, 0.11, "triangle", 0.026, 115);
+        break;
+      case "spiralSignal":
+        this.tone(510, 0.1, "sine", 0.026, 260);
+        this.tone(760, 0.11, "triangle", 0.021, -330, 0.055);
+        break;
+      case "mineSignal":
+        this.tone(118, 0.085, "square", 0.032, -18);
+        this.tone(92, 0.1, "square", 0.028, -12, 0.13);
+        break;
+      case "shooterSignal":
+        this.tone(310, 0.055, "square", 0.022, 45);
+        this.tone(420, 0.055, "square", 0.024, 55, 0.075);
+        this.tone(560, 0.07, "square", 0.026, 75, 0.15);
+        break;
+      case "hunterSignal":
+        this.tone(820, 0.17, "sawtooth", 0.028, -590);
+        this.tone(390, 0.09, "square", 0.018, -150, 0.065);
+        break;
+      case "shieldSignal":
+        this.tone(360, 0.2, "sine", 0.022, 18);
+        this.tone(540, 0.2, "sine", 0.018, 24, 0.025);
+        break;
+      case "shooterFire":
+        this.tone(205, 0.095, "sawtooth", 0.042, -125);
+        this.noise(0.045, 0.018, 0, 1350);
+        break;
       case "playerHit":
         this.tone(95, 0.18, "sawtooth", 0.06, -42);
         this.noise(0.16, 0.04);
@@ -96,13 +133,14 @@ export class AudioEngine {
     shape: OscillatorShape,
     volume: number,
     slide: number,
+    delaySeconds = 0,
   ): void {
     const context = this.context;
     if (context === null) {
       return;
     }
 
-    const now = context.currentTime;
+    const now = context.currentTime + delaySeconds;
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     oscillator.type = shape;
@@ -122,7 +160,7 @@ export class AudioEngine {
     oscillator.stop(now + duration + 0.02);
   }
 
-  private noise(duration: number, volume: number): void {
+  private noise(duration: number, volume: number, delaySeconds = 0, centerFrequency = 900): void {
     const context = this.context;
     if (context === null) {
       return;
@@ -139,12 +177,12 @@ export class AudioEngine {
     const filter = context.createBiquadFilter();
     const gain = context.createGain();
     filter.type = "bandpass";
-    filter.frequency.value = 900;
+    filter.frequency.value = centerFrequency;
     gain.gain.value = volume;
     source.buffer = buffer;
     source.connect(filter);
     filter.connect(gain);
     gain.connect(context.destination);
-    source.start();
+    source.start(context.currentTime + delaySeconds);
   }
 }

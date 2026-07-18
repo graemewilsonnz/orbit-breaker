@@ -90,3 +90,63 @@ Performance samples held at 60.0-60.1 fps. Smoothed update cost was 0.04-0.09 ms
 The Golden first minute checkpoint is playable and passes its local engineering, input, readability,
 refresh-rate, summary, and performance gates. Broader enemy grammar, all-wave pacing, and full-run
 presentation remain intentionally assigned to M2-M5.
+
+## M2 threat readability and enemy grammar pass
+
+Date: 2026-07-19<br> Build: M2 threat readability and enemy grammar
+
+### Scope
+
+- Inspect all six enemies without relying on colour: silhouette, movement, spawn identity, warning,
+  and tactical role.
+- Exercise Mine arming and danger radius, Shooter aim/wind-up/recovery, Hunter tracking and
+  committed lunge, and Shield Carrier range/link behavior.
+- Verify shot, bomb, contact, escape, and transition resolutions remain separate and idempotent.
+- Verify required wave enemies are accounted for while debug spawns and boss adds remain excluded.
+- Exercise Flawless, Full Clear, and Perfect derivation, scoring, overlay, and debug summaries.
+- Re-run repository and runtime checks after an unexpected forced PC reboot.
+
+### Automated evidence
+
+- Vitest covers all eight required wave-outcome regressions, including absorbed contacts, bomb-only
+  clears, transition cleanup, duplicate resolution, next-wave reset, exact bonus award/withholding,
+  a dash-compatible Perfect, and real shot-collision and outer-escape paths.
+- Deterministic enemy scenarios cover all six spawn identities and motion signatures, Mine, Shooter,
+  and Hunter warning windows, Shield Carrier protection/removal, and the bombed-Shooter same-step
+  regression.
+- The full engineering gate passes: strict typecheck, lint, 124 unit/scenario tests across 16 files,
+  and the production build.
+- Four Chromium browser flows pass, including five fresh-start input/damage passes. The buffered
+  dash setup freezes simulation and sets an exact debug cooldown, eliminating wall-clock sampling
+  races.
+- Formatting passes across the repository.
+- Git integrity, the dependency tree, lockfile, source tree, and development/preview logs showed no
+  corruption or partial writes after the reboot.
+
+### Manual result
+
+Passed in the in-app Chromium browser at the 960x720 logical presentation size:
+
+- Drifter diamonds, Spiral Diver pinwheels, Mine stars, Shooter turrets, Hunter arrows, and Shield
+  Carrier hexagons remained identifiable by shape and motion.
+- Mine arming exposed a restrained pink danger circle before activation; multiple Mines stayed
+  readable without filling the arena with overlapping collision decoration.
+- Shooter wind-up showed its committed radial lane and recovery state before another shot could
+  fire.
+- Hunters tracked only to their lock radius, then showed a committed lane that could be sidestepped.
+- Shield Carrier ranges used dashed circles; protected targets had a direct transfer line and aura,
+  making the carrier-target relationship and priority clear.
+- A no-damage wave with nine escapes displayed Flawless as achieved and Full Clear and Perfect as
+  missed. The wave-clear summary and debug panel report required, destroyed, bomb-kill, breach, and
+  escape counts alongside the same outcome flags.
+- The title, active-wave HUD, threat warnings, and outcome overlay fit without clipping.
+- The browser reported no console warnings or errors.
+
+Observed performance held at approximately 60 fps. Smoothed update cost was 0.02-0.09 ms and render
+cost was 0.47-0.58 ms in the inspected M2 scenarios, leaving substantial 60 fps headroom.
+
+### M2 result
+
+The Threat readability and enemy grammar checkpoint is playable and passes its lifecycle,
+fair-warning, enemy-identity, outcome, summary, reliability, and presentation gates. Eight-wave
+rhythm, score-value tuning, and power-curve decisions remain intentionally assigned to M3.

@@ -15,13 +15,27 @@ export interface SpiralEnemyDefinition extends BaseEnemyDefinition {
   readonly angularVelocity: NumberRange;
 }
 
+export interface MineEnemyDefinition extends BaseEnemyDefinition {
+  readonly claimRadius: number;
+  readonly warningTime: number;
+  readonly holdTime: number;
+  readonly releaseSpeed: number;
+  readonly dangerRadius: number;
+}
+
 export interface ShooterEnemyDefinition extends BaseEnemyDefinition {
   readonly fireRadius: NumberRange;
   readonly fireCooldown: NumberRange;
+  readonly warningTime: number;
+  readonly aimTurnRate: number;
+  readonly driftSpeed: number;
 }
 
 export interface HunterEnemyDefinition extends BaseEnemyDefinition {
   readonly turnRate: NumberRange;
+  readonly lockRadius: number;
+  readonly warningTime: number;
+  readonly lungeSpeed: number;
 }
 
 export interface ShieldEnemyDefinition extends BaseEnemyDefinition {
@@ -31,7 +45,7 @@ export interface ShieldEnemyDefinition extends BaseEnemyDefinition {
 export interface EnemyDefinitionByType {
   readonly drifter: BaseEnemyDefinition;
   readonly spiral: SpiralEnemyDefinition;
-  readonly mine: BaseEnemyDefinition;
+  readonly mine: MineEnemyDefinition;
   readonly shooter: ShooterEnemyDefinition;
   readonly hunter: HunterEnemyDefinition;
   readonly shield: ShieldEnemyDefinition;
@@ -57,6 +71,11 @@ export const ENEMY_DEFINITIONS = {
   mine: {
     health: 2,
     radialSpeed: [25, 40],
+    claimRadius: 220,
+    warningTime: 0.8,
+    holdTime: 2.8,
+    releaseSpeed: 82,
+    dangerRadius: 60,
     size: 20,
     score: 200,
   },
@@ -64,7 +83,10 @@ export const ENEMY_DEFINITIONS = {
     health: 2,
     radialSpeed: 45,
     fireRadius: [150, 210],
-    fireCooldown: [1.5, 2.5],
+    fireCooldown: [1.35, 2.0],
+    warningTime: 0.7,
+    aimTurnRate: 2.8,
+    driftSpeed: 10,
     size: 16,
     score: 250,
   },
@@ -72,6 +94,9 @@ export const ENEMY_DEFINITIONS = {
     health: 1,
     radialSpeed: [70, 90],
     turnRate: [0.7, 1.0],
+    lockRadius: 202,
+    warningTime: 0.58,
+    lungeSpeed: 112,
     size: 15,
     score: 300,
   },
@@ -89,9 +114,9 @@ const COMMON_FIELDS = ["health", "radialSpeed", "size", "score"] as const;
 const SPECIAL_FIELDS = {
   drifter: [],
   spiral: ["angularVelocity"],
-  mine: [],
-  shooter: ["fireRadius", "fireCooldown"],
-  hunter: ["turnRate"],
+  mine: ["claimRadius", "warningTime", "holdTime", "releaseSpeed", "dangerRadius"],
+  shooter: ["fireRadius", "fireCooldown", "warningTime", "aimTurnRate", "driftSpeed"],
+  hunter: ["turnRate", "lockRadius", "warningTime", "lungeSpeed"],
   shield: ["shieldRadius"],
 } as const satisfies Readonly<Record<EnemyType, readonly string[]>>;
 
@@ -186,11 +211,23 @@ export function validateEnemyDefinitions(
 
     if (type === "spiral") {
       assertPositiveRange(definition.angularVelocity, `${path}.angularVelocity`);
+    } else if (type === "mine") {
+      assertPositive(definition.claimRadius, `${path}.claimRadius`);
+      assertPositive(definition.warningTime, `${path}.warningTime`);
+      assertPositive(definition.holdTime, `${path}.holdTime`);
+      assertPositive(definition.releaseSpeed, `${path}.releaseSpeed`);
+      assertPositive(definition.dangerRadius, `${path}.dangerRadius`);
     } else if (type === "shooter") {
       assertPositiveRange(definition.fireRadius, `${path}.fireRadius`);
       assertPositiveRange(definition.fireCooldown, `${path}.fireCooldown`);
+      assertPositive(definition.warningTime, `${path}.warningTime`);
+      assertPositive(definition.aimTurnRate, `${path}.aimTurnRate`);
+      assertPositive(definition.driftSpeed, `${path}.driftSpeed`);
     } else if (type === "hunter") {
       assertPositiveRange(definition.turnRate, `${path}.turnRate`);
+      assertPositive(definition.lockRadius, `${path}.lockRadius`);
+      assertPositive(definition.warningTime, `${path}.warningTime`);
+      assertPositive(definition.lungeSpeed, `${path}.lungeSpeed`);
     } else if (type === "shield") {
       assertPositive(definition.shieldRadius, `${path}.shieldRadius`);
     }

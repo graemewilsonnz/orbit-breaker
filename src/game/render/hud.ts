@@ -60,8 +60,30 @@ export function renderOverlay(context: CanvasRenderingContext2D, state: Readonly
       return;
     case "waveClear":
       drawOverlay(context, 0.25);
-      headline(context, "WAVE CLEAR", 292, 46);
-      subline(context, state.lastWavePerfect ? "PERFECT WAVE +1000" : "REGROUP", 352);
+      headline(context, "WAVE CLEAR", 232, 46);
+      subline(
+        context,
+        `REQUIRED ${state.waveStats.requiredEnemiesSpawned}   ` +
+          `DESTROYED ${state.waveStats.enemiesDestroyed} ` +
+          `(BOMB ${state.waveStats.enemiesKilledByBomb})`,
+        294,
+        CONFIG.colors.text,
+      );
+      subline(
+        context,
+        `BREACHED ${state.waveStats.enemiesBreached}   ` +
+          `ESCAPED ${state.waveStats.enemiesEscaped}`,
+        324,
+      );
+      outcomeLine(context, "FLAWLESS / NO DAMAGE", state.lastWaveOutcome?.noDamage ?? false, 370);
+      outcomeLine(context, "FULL CLEAR", state.lastWaveOutcome?.fullClear ?? false, 404);
+      outcomeLine(
+        context,
+        `PERFECT +${formatScore(CONFIG.scoring.perfectWaveBonus)}`,
+        state.lastWaveOutcome?.perfect ?? false,
+        438,
+        true,
+      );
       return;
     case "bossIntro":
       drawOverlay(context, 0.33);
@@ -168,13 +190,31 @@ function subline(
   context.restore();
 }
 
+function outcomeLine(
+  context: CanvasRenderingContext2D,
+  label: string,
+  achieved: boolean,
+  y: number,
+  scored = false,
+): void {
+  const status = achieved ? (scored ? "AWARDED" : "ACHIEVED") : "MISSED";
+  subline(
+    context,
+    `${label} — ${status}`,
+    y,
+    achieved ? CONFIG.colors.playerAccent : CONFIG.colors.mutedText,
+  );
+}
+
 function renderRunSummary(
   context: CanvasRenderingContext2D,
   metrics: ReadonlyRunMetrics,
   startY: number,
 ): void {
   const lastDamage =
-    metrics.lastDamageSource === null ? "NO DAMAGE" : damageSourceLabel(metrics.lastDamageSource);
+    metrics.lastDamageSource === null
+      ? "NO DAMAGE"
+      : damageSourceLabel(metrics.lastDamageSource, metrics.lastDamageEnemyType);
   subline(
     context,
     `ACCURACY ${accuracyPercent(metrics)}%  ${metrics.shotsHit}/${metrics.shotsFired} HITS` +

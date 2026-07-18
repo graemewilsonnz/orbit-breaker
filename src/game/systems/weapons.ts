@@ -1,6 +1,7 @@
 import { CONFIG } from "../config";
 import { normalizeAngle, polarToCartesian } from "../core/geometry";
 import type { CartesianPosition, EnemyState, ProjectileOwner, ProjectileState } from "../state";
+import type { EnemyType } from "../content/enemies";
 
 export interface ProjectileOptions {
   readonly owner: ProjectileOwner;
@@ -12,6 +13,7 @@ export interface ProjectileOptions {
   readonly damage?: number;
   readonly pierce?: number;
   readonly color?: string;
+  readonly sourceEnemyType?: EnemyType | null;
 }
 
 /** Creates the same plain projectile state as the original Projectile constructor. */
@@ -29,6 +31,7 @@ export function createProjectile(options: ProjectileOptions): ProjectileState {
     active: true,
     age: 0,
     hitRegistered: false,
+    sourceEnemyType: options.sourceEnemyType ?? null,
   };
 }
 
@@ -42,6 +45,7 @@ export function createShooterProjectile(
     radialSpeed: CONFIG.projectiles.enemySpeed,
     size: CONFIG.projectiles.enemySize,
     color: CONFIG.colors.enemyBullet,
+    sourceEnemyType: "shooter",
   });
 }
 

@@ -63,6 +63,9 @@ export const CONFIG = {
     enemyContactScale: 0.66,
     enemyProjectileScale: 0.9,
   },
+  telegraphs: {
+    enemySpawnSeconds: 0.78,
+  },
   enemies: ENEMY_DEFINITIONS,
   boss: MOTHERSHIP_BOSS,
   scoring: {

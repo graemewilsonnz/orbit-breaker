@@ -1,7 +1,7 @@
 # M2 Wave Outcome and Perfect-Bonus Notes
 
 Audit date: 2026-07-18  
-Status: design and implementation note; M1 gameplay is unchanged
+Status: implemented in M2
 
 ## Decision
 
@@ -21,9 +21,9 @@ contact is still a breach rather than a kill, so it prevents Full Clear and Perf
 These outcomes may award independently. If Perfect also adds score on top of Flawless and Full
 Clear, make that stacking explicit in the scoring configuration and result presentation.
 
-## Current-code audit
+## Pre-M2 code audit (resolved)
 
-The reported bug is present:
+The reported bug was present before M2. The implementation below replaces these old behaviours:
 
 - `GameState.perfectWave` is a single boolean. It starts as `true` and is reset to `true` for each
   wave.

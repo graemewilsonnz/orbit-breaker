@@ -1,6 +1,7 @@
 import { CONFIG } from "../config";
 import { normalizeAngle, polarToCartesian } from "../core/geometry";
 import type { DamageSource } from "../runMetrics";
+import type { EnemyType } from "../content/enemies";
 import type { CartesianPosition, PlayerState } from "../state";
 import type { InputSnapshot } from "./input";
 import type { SimulationHost } from "./host";
@@ -141,6 +142,7 @@ export function takePlayerHit(
   player: PlayerState,
   host: SimulationHost,
   source: DamageSource,
+  enemyType: EnemyType | null = null,
 ): boolean {
   if (!isPlayerVulnerable(player)) {
     return false;
@@ -165,7 +167,7 @@ export function takePlayerHit(
   player.lives -= 1;
   player.invulnerabilityTimer = CONFIG.player.invulnerabilityAfterHit;
   player.flashTimer = CONFIG.player.invulnerabilityAfterHit;
-  host.onPlayerDamaged(source);
+  host.onPlayerDamaged(source, enemyType);
   return true;
 }
 

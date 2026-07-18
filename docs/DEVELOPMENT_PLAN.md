@@ -1,6 +1,6 @@
 # Orbit Breaker Development Plan
 
-Status: In execution — M1 implemented<br> Plan version: 0.2<br> Date: 2026-07-18
+Status: In execution — M2 implemented<br> Plan version: 0.3<br> Date: 2026-07-19
 
 ## 1. Outcome
 
@@ -485,5 +485,5 @@ Approval of this plan also approves these defaults:
 6. Target keyboard desktop play and defer mobile, backend, and campaign work.
 7. Use seven review checkpoints, including foundation, each ending in a playable and tested build.
 
-M0 and M1 are now implemented. Further gameplay expansion begins with M2 after the M1 checkpoint is
-reviewed and accepted.
+M0, M1, and M2 are now implemented. Wave authoring, scoring decisions, and power-curve work continue
+in M3 after the M2 checkpoint is reviewed and accepted.

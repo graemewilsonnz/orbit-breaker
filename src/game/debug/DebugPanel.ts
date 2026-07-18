@@ -1,5 +1,6 @@
 import { ENEMY_TYPES, isEnemyType, type EnemyType } from "../content/enemies";
 import { damageSourceLabel, type DamageSource } from "../runMetrics";
+import type { WaveOutcome, WaveStats } from "../waveOutcomes";
 
 export type DebugWave = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
@@ -12,6 +13,7 @@ export type DebugCommand =
   | Readonly<{ type: "start-boss" }>
   | Readonly<{ type: "set-invulnerable"; enabled: boolean }>
   | Readonly<{ type: "set-time-scale"; scale: DebugTimeScale }>
+  | Readonly<{ type: "set-dash-cooldown"; seconds: number }>
   | Readonly<{ type: "single-step" }>
   | Readonly<{ type: "spawn-enemy"; enemyType: EnemyType }>
   | Readonly<{ type: "show-hitboxes"; enabled: boolean }>
@@ -29,6 +31,8 @@ export interface DebugSnapshot {
   readonly powerups: number;
   readonly bossHealth: number | null;
   readonly pendingSpawns: number;
+  readonly waveStats: Readonly<WaveStats>;
+  readonly lastWaveOutcome: Readonly<WaveOutcome> | null;
   readonly run: {
     readonly accuracyPercent: number;
     readonly elapsedSeconds: number;
@@ -37,6 +41,7 @@ export interface DebugSnapshot {
     readonly enemiesDestroyed: number;
     readonly damageTaken: number;
     readonly lastDamageSource: DamageSource | null;
+    readonly lastDamageEnemyType: EnemyType | null;
     readonly firstMoveSeconds: number | null;
     readonly firstShotSeconds: number | null;
     readonly firstDashSeconds: number | null;
@@ -290,6 +295,17 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
     powerups: requireElement<HTMLElement>(root, '[data-value="powerups"]'),
     bossHealth: requireElement<HTMLElement>(root, '[data-value="boss-health"]'),
     pendingSpawns: requireElement<HTMLElement>(root, '[data-value="pending-spawns"]'),
+    requiredEnemies: requireElement<HTMLElement>(root, '[data-value="wave-required"]'),
+    destroyedEnemies: requireElement<HTMLElement>(root, '[data-value="wave-destroyed"]'),
+    bombKills: requireElement<HTMLElement>(root, '[data-value="wave-bomb-kills"]'),
+    breaches: requireElement<HTMLElement>(root, '[data-value="wave-breaches"]'),
+    escapes: requireElement<HTMLElement>(root, '[data-value="wave-escapes"]'),
+    playerDamaged: requireElement<HTMLElement>(root, '[data-value="wave-damaged"]'),
+    bombUsed: requireElement<HTMLElement>(root, '[data-value="wave-bomb-used"]'),
+    lastWaveClear: requireElement<HTMLElement>(root, '[data-value="last-wave-clear"]'),
+    lastNoDamage: requireElement<HTMLElement>(root, '[data-value="last-no-damage"]'),
+    lastFullClear: requireElement<HTMLElement>(root, '[data-value="last-full-clear"]'),
+    lastPerfect: requireElement<HTMLElement>(root, '[data-value="last-perfect"]'),
     accuracy: requireElement<HTMLElement>(root, '[data-value="accuracy"]'),
     runTime: requireElement<HTMLElement>(root, '[data-value="run-time"]'),
     hits: requireElement<HTMLElement>(root, '[data-value="hits"]'),
@@ -423,6 +439,17 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
     values.bossHealth.textContent =
       snapshot.bossHealth === null ? "\u2014" : formatNumber(snapshot.bossHealth);
     values.pendingSpawns.textContent = formatNumber(snapshot.pendingSpawns);
+    values.requiredEnemies.textContent = formatNumber(snapshot.waveStats.requiredEnemiesSpawned);
+    values.destroyedEnemies.textContent = formatNumber(snapshot.waveStats.enemiesDestroyed);
+    values.bombKills.textContent = formatNumber(snapshot.waveStats.enemiesKilledByBomb);
+    values.breaches.textContent = formatNumber(snapshot.waveStats.enemiesBreached);
+    values.escapes.textContent = formatNumber(snapshot.waveStats.enemiesEscaped);
+    values.playerDamaged.textContent = formatBoolean(snapshot.waveStats.playerDamaged);
+    values.bombUsed.textContent = formatBoolean(snapshot.waveStats.bombUsed);
+    values.lastWaveClear.textContent = formatOutcome(snapshot.lastWaveOutcome?.waveClear);
+    values.lastNoDamage.textContent = formatOutcome(snapshot.lastWaveOutcome?.noDamage);
+    values.lastFullClear.textContent = formatOutcome(snapshot.lastWaveOutcome?.fullClear);
+    values.lastPerfect.textContent = formatOutcome(snapshot.lastWaveOutcome?.perfect);
     values.accuracy.textContent = `${formatNumber(snapshot.run.accuracyPercent)}%`;
     values.runTime.textContent = formatDuration(snapshot.run.elapsedSeconds);
     values.hits.textContent = `${snapshot.run.shotsHit}/${snapshot.run.shotsFired}`;
@@ -431,7 +458,7 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
     values.damageSource.textContent =
       snapshot.run.lastDamageSource === null
         ? "\u2014"
-        : damageSourceLabel(snapshot.run.lastDamageSource);
+        : damageSourceLabel(snapshot.run.lastDamageSource, snapshot.run.lastDamageEnemyType);
     values.firstMove.textContent = formatSeconds(snapshot.run.firstMoveSeconds);
     values.firstShot.textContent = formatSeconds(snapshot.run.firstShotSeconds);
     values.firstDash.textContent = formatSeconds(snapshot.run.firstDashSeconds);
@@ -560,6 +587,23 @@ function panelMarkup(panelId: number): string {
         </dl>
       </section>
 
+      <section aria-labelledby="ob-debug-wave-outcome-${panelId}">
+        <h2 id="ob-debug-wave-outcome-${panelId}">Wave outcome</h2>
+        <dl class="ob-debug__metrics ob-debug__snapshot" aria-live="off">
+          ${metric("Required", "wave-required")}
+          ${metric("Destroyed", "wave-destroyed")}
+          ${metric("Bomb kills", "wave-bomb-kills")}
+          ${metric("Breaches", "wave-breaches")}
+          ${metric("Escapes", "wave-escapes")}
+          ${metric("Damaged", "wave-damaged")}
+          ${metric("Bomb used", "wave-bomb-used")}
+          ${metric("Last clear", "last-wave-clear")}
+          ${metric("Last flawless", "last-no-damage")}
+          ${metric("Last full", "last-full-clear")}
+          ${metric("Last perfect", "last-perfect")}
+        </dl>
+      </section>
+
       <section aria-labelledby="ob-debug-summary-${panelId}">
         <h2 id="ob-debug-summary-${panelId}">Run summary</h2>
         <dl class="ob-debug__metrics ob-debug__snapshot" aria-live="off">
@@ -626,6 +670,14 @@ function formatDuration(seconds: number): string {
 
 function formatSeconds(value: number | null): string {
   return value === null ? "\u2014" : `${value.toFixed(1)} s`;
+}
+
+function formatBoolean(value: boolean): string {
+  return value ? "yes" : "no";
+}
+
+function formatOutcome(value: boolean | undefined): string {
+  return value === undefined ? "\u2014" : formatBoolean(value);
 }
 
 function formatWaveTime(
