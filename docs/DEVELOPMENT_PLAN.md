@@ -286,6 +286,9 @@ Work:
 - Ensure Hunters pressure movement without creating unavoidable tracking.
 - Ensure Mines claim arcs without becoming visual or collision clutter.
 - Give Shooters readable aim, wind-up, projectile speed, and recovery timing.
+- Separate enemy destruction, bomb kills, contact breaches, escapes, and transition cleanup so wave
+  outcomes cannot treat every removal as a kill. Implement the strict bonus rules in
+  `docs/M2_WAVE_OUTCOME_NOTES.md`.
 - Add deterministic scenario tests for each enemy and collision edge cases.
 
 Gate:
@@ -293,6 +296,7 @@ Gate:
 - A player can name the threat behaviour from silhouette and motion alone.
 - No enemy can damage the player before its minimum warning window completes.
 - Automated scenarios cover spawn, movement, attack, damage, death, and cleanup.
+- Wave outcome scenarios prove that only a no-damage full clear with no bomb earns Perfect.
 - A death summary can always identify the damaging source.
 
 ### M3 - Waves, scoring, and power curve
