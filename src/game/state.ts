@@ -171,6 +171,15 @@ export interface WaveRuntimeState {
   queue: WaveSpawnState[];
   elapsed: number;
   completeDelay: number;
+  dropsAwarded: number;
+  killsSinceDrop: number;
+  antiStallTriggered: boolean;
+}
+
+export interface ScoreFeedbackState {
+  primary: string;
+  secondary: string;
+  timer: number;
 }
 
 export interface GameState {
@@ -191,6 +200,7 @@ export interface GameState {
   killStreak: number;
   waveStats: WaveStats;
   lastWaveOutcome: WaveOutcome | null;
+  scoreFeedback: ScoreFeedbackState | null;
   shake: number;
   runMetrics: RunMetrics;
 }
@@ -230,6 +240,7 @@ export interface ReadonlyGameState {
   readonly killStreak: number;
   readonly waveStats: Readonly<WaveStats>;
   readonly lastWaveOutcome: Readonly<WaveOutcome> | null;
+  readonly scoreFeedback: Readonly<ScoreFeedbackState> | null;
   readonly shake: number;
   readonly runMetrics: ReadonlyRunMetrics;
 }

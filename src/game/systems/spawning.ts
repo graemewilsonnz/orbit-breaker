@@ -5,12 +5,14 @@ import type { EnemyType } from "../content/enemies";
 import type { WaveRuntimeState, WaveSpawnState } from "../state";
 
 export const WAVE_COMPLETION_DELAY_SECONDS = 0.8;
+export const WAVE_ANTI_STALL_GRACE_SECONDS = 8;
 
 export interface WaveUpdateCallbacks {
   readonly bossActive: boolean;
   readonly enemyCount: number;
   readonly spawnEnemy: (type: EnemyType, angle: number) => void;
   readonly completeWave: () => void;
+  readonly resolveStalledEnemies: () => void;
 }
 
 /**
@@ -73,6 +75,9 @@ export function startWave(wave: WaveRuntimeState, waveNumber: number, random: Ra
   wave.queue = buildSpawnQueue(definition, random);
   wave.elapsed = 0;
   wave.completeDelay = 0;
+  wave.dropsAwarded = 0;
+  wave.killsSinceDrop = 0;
+  wave.antiStallTriggered = false;
 }
 
 export function updateWave(
@@ -94,6 +99,17 @@ export function updateWave(
     wave.queue.shift();
     callbacks.spawnEnemy(event.type, event.angle);
     spawnedEnemy = true;
+  }
+
+  const hardDeadline = wave.definition.targetDuration[1] + WAVE_ANTI_STALL_GRACE_SECONDS;
+  if (
+    wave.queue.length === 0 &&
+    callbacks.enemyCount > 0 &&
+    wave.elapsed >= hardDeadline &&
+    !wave.antiStallTriggered
+  ) {
+    wave.antiStallTriggered = true;
+    callbacks.resolveStalledEnemies();
   }
 
   if (wave.queue.length === 0 && callbacks.enemyCount === 0 && !spawnedEnemy) {

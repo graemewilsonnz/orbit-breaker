@@ -133,10 +133,13 @@ describe("typed M1 content contract", () => {
         unusedBombVictoryBonus: 500,
         killsPerMultiplier: 5,
         maxMultiplier: 5,
+        feedbackSeconds: 1.15,
       },
       powerups: {
-        baseDropChance: 0.08,
-        thirdWaveDropChance: 0.16,
+        waveDropChances: [0.06, 0.07, 0.13, 0.08, 0.1, 0.14, 0.1, 0.12],
+        pityKills: 10,
+        maxDropsPerWave: 2,
+        maxActiveDrops: 2,
         size: 14,
         radialSpeed: 34,
         weaponBoostDuration: 18,
@@ -178,67 +181,98 @@ describe("typed M1 content contract", () => {
   });
 
   it("pins every authored wave group", () => {
-    expect(WAVE_DEFINITIONS).toEqual([
+    expect(WAVE_DEFINITIONS.map(({ name, groups }) => ({ name, groups }))).toEqual([
       {
         name: "Wave 1: Trace the Ring",
         groups: [
-          { type: "drifter", count: 9, start: 0.85, interval: 0.82, pattern: "sweep", step: 0.68 },
+          { type: "drifter", count: 7, start: 0.85, interval: 0.72, pattern: "sweep", step: 0.68 },
+          { type: "drifter", count: 2, start: 8.3, interval: 0.7, pattern: "mirror", step: 0.45 },
         ],
       },
       {
         name: "Wave 2: Crossing Lines",
         groups: [
-          { type: "drifter", count: 12, start: 0.65, interval: 0.46, pattern: "mirror", step: 0.5 },
-          { type: "drifter", count: 5, start: 6.25, interval: 0.58, pattern: "fan", spread: 1.65 },
+          { type: "drifter", count: 12, start: 0.65, interval: 0.48, pattern: "mirror", step: 0.5 },
+          { type: "drifter", count: 5, start: 11, interval: 0.45, pattern: "fan", spread: 1.65 },
         ],
       },
       {
         name: "Wave 3: Spiral Introduction",
         groups: [
           { type: "drifter", count: 7, start: 0.4, interval: 0.5, pattern: "sweep", step: 0.55 },
-          { type: "spiral", count: 8, start: 2.2, interval: 0.6, pattern: "fan", spread: 1.8 },
+          { type: "spiral", count: 8, start: 10, interval: 0.55, pattern: "fan", spread: 1.8 },
         ],
       },
       {
         name: "Wave 4: First Pressure Mix",
         groups: [
           { type: "drifter", count: 7, start: 0.4, interval: 0.46, pattern: "random" },
-          { type: "spiral", count: 6, start: 1.8, interval: 0.6, pattern: "sweep", step: -0.7 },
-          { type: "hunter", count: 4, start: 4.8, interval: 0.72, pattern: "mirror", step: 0.52 },
+          { type: "spiral", count: 6, start: 5, interval: 0.6, pattern: "sweep", step: -0.7 },
+          { type: "hunter", count: 4, start: 15, interval: 0.65, pattern: "mirror", step: 0.52 },
         ],
       },
       {
         name: "Wave 5: Minefield",
         groups: [
           { type: "mine", count: 7, start: 0.4, interval: 0.78, pattern: "sweep", step: 0.75 },
-          { type: "drifter", count: 10, start: 2.2, interval: 0.48, pattern: "random" },
+          { type: "drifter", count: 10, start: 12, interval: 0.55, pattern: "random" },
         ],
       },
       {
         name: "Wave 6: Crossfire",
         groups: [
           { type: "shooter", count: 5, start: 0.5, interval: 1.15, pattern: "fan", spread: 2.7 },
-          { type: "drifter", count: 8, start: 1.4, interval: 0.48, pattern: "mirror", step: 0.48 },
-          { type: "spiral", count: 6, start: 4.2, interval: 0.54, pattern: "random" },
+          { type: "drifter", count: 8, start: 7, interval: 0.48, pattern: "mirror", step: 0.48 },
+          { type: "spiral", count: 6, start: 18, interval: 0.54, pattern: "random" },
         ],
       },
       {
         name: "Wave 7: Priority Targets",
         groups: [
-          { type: "shield", count: 2, start: 0.5, interval: 3.2, pattern: "mirror", step: 0.0 },
-          { type: "drifter", count: 10, start: 1.0, interval: 0.45, pattern: "fan", spread: 2.4 },
-          { type: "hunter", count: 5, start: 4.3, interval: 0.7, pattern: "random" },
+          { type: "shield", count: 2, start: 0.5, interval: 3.5, pattern: "mirror", step: 0.0 },
+          { type: "drifter", count: 10, start: 5, interval: 0.45, pattern: "fan", spread: 2.4 },
+          { type: "hunter", count: 5, start: 19, interval: 0.7, pattern: "random" },
         ],
       },
       {
         name: "Wave 8: Final Mixed Wave",
         groups: [
-          { type: "drifter", count: 8, start: 0.35, interval: 0.38, pattern: "sweep", step: 0.5 },
-          { type: "spiral", count: 6, start: 1.4, interval: 0.5, pattern: "mirror", step: 0.4 },
-          { type: "mine", count: 4, start: 2.0, interval: 0.85, pattern: "fan", spread: 2.2 },
-          { type: "shooter", count: 3, start: 3.6, interval: 1.2, pattern: "random" },
-          { type: "hunter", count: 5, start: 5.4, interval: 0.56, pattern: "random" },
-          { type: "shield", count: 1, start: 6.4, interval: 1.0, pattern: "random" },
+          { type: "drifter", count: 8, start: 0.35, interval: 0.45, pattern: "sweep", step: 0.5 },
+          { type: "spiral", count: 6, start: 1.4, interval: 0.55, pattern: "mirror", step: 0.4 },
+          { type: "mine", count: 4, start: 8, interval: 0.85, pattern: "fan", spread: 2.2 },
+          { type: "shooter", count: 3, start: 9, interval: 0.9, pattern: "random" },
+          { type: "hunter", count: 5, start: 21, interval: 0.65, pattern: "random" },
+          { type: "shield", count: 1, start: 22.5, interval: 1.0, pattern: "random" },
+        ],
+      },
+    ]);
+  });
+
+  it("pins the M3 pressure, duration, and recovery contract", () => {
+    expect(
+      WAVE_DEFINITIONS.map(({ pressureBudget, targetDuration, recoveryBeats }) => ({
+        pressureBudget,
+        targetDuration,
+        recoveryBeats,
+      })),
+    ).toEqual([
+      { pressureBudget: 9, targetDuration: [14, 22], recoveryBeats: [{ at: 5.2, duration: 3.1 }] },
+      { pressureBudget: 17, targetDuration: [17, 25], recoveryBeats: [{ at: 6, duration: 5 }] },
+      { pressureBudget: 19, targetDuration: [19, 28], recoveryBeats: [{ at: 4, duration: 6 }] },
+      { pressureBudget: 24, targetDuration: [21, 30], recoveryBeats: [{ at: 8.2, duration: 6.8 }] },
+      { pressureBudget: 24, targetDuration: [22, 31], recoveryBeats: [{ at: 5.2, duration: 6.8 }] },
+      {
+        pressureBudget: 27,
+        targetDuration: [24, 34],
+        recoveryBeats: [{ at: 10.5, duration: 7.5 }],
+      },
+      { pressureBudget: 26, targetDuration: [25, 36], recoveryBeats: [{ at: 9.2, duration: 9.8 }] },
+      {
+        pressureBudget: 44,
+        targetDuration: [28, 40],
+        recoveryBeats: [
+          { at: 5, duration: 3 },
+          { at: 11, duration: 10 },
         ],
       },
     ]);

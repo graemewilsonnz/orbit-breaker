@@ -3,9 +3,10 @@
 Orbit Breaker is a desktop-first radial Canvas 2D arcade shooter. The player moves around a fixed
 outer orbit, fires inward, survives eight waves, and defeats a three-phase mothership.
 
-Current checkpoint: **M2 — Threat readability and enemy grammar**. All six enemies now communicate
-their role through distinct silhouettes, motion, warnings, and audio. Wave results separately track
-Flawless, Full Clear, and Perfect outcomes using reason-coded enemy lifecycle accounting.
+Current checkpoint: **M3 — Waves, scoring, and power curve**. Eight authored encounters now carry
+explicit pressure budgets, target durations, and recovery beats. Centre kills, chain multipliers,
+and multiplier loss are surfaced immediately, while capped pity drops keep each seed survivable
+without allowing pickup clutter.
 
 ## Requirements
 
@@ -22,8 +23,9 @@ npm run dev
 Open the local URL printed by Vite. The game uses a deterministic run seed; pass `?seed=1234` to
 reproduce a run. During development, `?debug=1` opens the debug panel.
 
-The development panel includes first-action timing, enemy-specific damage attribution, live wave
-outcome statistics, wave timing, and performance counters for repeatable M2 playtests.
+The development panel includes wave select, seed control, first-action timing, enemy-specific damage
+attribution, live wave outcomes, wave timing, and performance counters for repeatable M3 regression
+runs.
 
 ## Commands
 

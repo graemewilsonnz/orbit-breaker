@@ -150,3 +150,41 @@ cost was 0.47-0.58 ms in the inspected M2 scenarios, leaving substantial 60 fps 
 The Threat readability and enemy grammar checkpoint is playable and passes its lifecycle,
 fair-warning, enemy-identity, outcome, summary, reliability, and presentation gates. Eight-wave
 rhythm, score-value tuning, and power-curve decisions remain intentionally assigned to M3.
+
+## M3 waves, scoring, and power curve pass
+
+Date: 2026-07-22<br> Build: M3 waves, scoring, and power curve
+
+### Scope
+
+- Replace implicit wave pacing with typed identity, pressure-budget, target-duration, and recovery
+  contracts for all eight waves.
+- Re-author each spawn timeline into distinct movements with a real no-spawn recovery beat.
+- Surface centre-kill value, multiplier growth, and multiplier loss at the moment of the decision.
+- Replace flat drops with per-wave chances, a ten-kill pity rule, helpful weighted selection, and
+  per-wave/active-drop ceilings.
+- Expire missed inter-wave pickups and resolve overdue enemies as escapes so neither can stall the
+  route to the boss.
+- Exercise every wave in seeded invincible-idle and deterministic full-clear flows.
+
+### Automated evidence
+
+- Content validation ties every declared pressure budget to the authored enemy cost and validates
+  target-duration and non-overlapping recovery contracts.
+- Spawn-queue fixtures pin 138 events across the eight re-authored timelines and preserve seeded
+  angle generation.
+- Nineteen M3 scenarios cover the three-to-five-minute pacing envelope, all eight idle routes, all
+  eight full-clear routes, centre-kill value, multiplier feedback, pity drops, and pickup caps.
+- The full Vitest suite passes with 144 tests across 17 files.
+
+### Manual verification boundary
+
+Engineering and browser gates are recorded by the commands run for this checkpoint. A human balance
+pass should still record three complete normal runs from Wave 1 before M3 review acceptance; the
+automated flows prove completion and rules, not final subjective difficulty.
+
+### M3 result
+
+The Waves, scoring, and power curve checkpoint is implemented and deterministic. The run now has
+eight recognisable pressure shapes, explicit recovery, visible score risk/reward, bounded power
+growth, and anti-stall routes. Boss encounter design remains assigned to M4.

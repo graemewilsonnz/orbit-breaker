@@ -8,8 +8,19 @@ export interface PowerUpDefinition {
 export type PowerUpDefinitions = Readonly<Record<PowerUpType, Readonly<PowerUpDefinition>>>;
 
 export interface PowerUpTuning {
-  readonly baseDropChance: number;
-  readonly thirdWaveDropChance: number;
+  readonly waveDropChances: readonly [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  readonly pityKills: number;
+  readonly maxDropsPerWave: number;
+  readonly maxActiveDrops: number;
   readonly size: number;
   readonly radialSpeed: number;
   readonly weaponBoostDuration: number;
@@ -22,8 +33,10 @@ export const POWER_UP_DEFINITIONS = {
 } as const satisfies PowerUpDefinitions;
 
 export const POWER_UP_CONFIG = {
-  baseDropChance: 0.08,
-  thirdWaveDropChance: 0.16,
+  waveDropChances: [0.06, 0.07, 0.13, 0.08, 0.1, 0.14, 0.1, 0.12],
+  pityKills: 10,
+  maxDropsPerWave: 2,
+  maxActiveDrops: 2,
   size: 14,
   radialSpeed: 34,
   weaponBoostDuration: 18,
@@ -98,17 +111,35 @@ export function validatePowerUpTuning(
   assertRecord(value, "powerups.tuning");
   assertExactKeys(
     value,
-    ["baseDropChance", "thirdWaveDropChance", "size", "radialSpeed", "weaponBoostDuration"],
+    [
+      "waveDropChances",
+      "pityKills",
+      "maxDropsPerWave",
+      "maxActiveDrops",
+      "size",
+      "radialSpeed",
+      "weaponBoostDuration",
+    ],
     "powerups.tuning",
   );
-  assertProbability(value.baseDropChance, "powerups.tuning.baseDropChance");
-  assertProbability(value.thirdWaveDropChance, "powerups.tuning.thirdWaveDropChance");
+  if (!Array.isArray(value.waveDropChances) || value.waveDropChances.length !== 8) {
+    contentError("powerups.tuning.waveDropChances", "expected one chance for each of eight waves");
+  }
+  value.waveDropChances.forEach((chance, index) =>
+    assertProbability(chance, `powerups.tuning.waveDropChances[${index}]`),
+  );
+  assertPositiveInteger(value.pityKills, "powerups.tuning.pityKills");
+  assertPositiveInteger(value.maxDropsPerWave, "powerups.tuning.maxDropsPerWave");
+  assertPositiveInteger(value.maxActiveDrops, "powerups.tuning.maxActiveDrops");
   assertPositive(value.size, "powerups.tuning.size");
   assertPositive(value.radialSpeed, "powerups.tuning.radialSpeed");
   assertPositive(value.weaponBoostDuration, "powerups.tuning.weaponBoostDuration");
+}
 
-  if (value.thirdWaveDropChance < value.baseDropChance) {
-    contentError("powerups.tuning.thirdWaveDropChance", "must not be lower than baseDropChance");
+function assertPositiveInteger(value: unknown, path: string): asserts value is number {
+  assertPositive(value, path);
+  if (!Number.isInteger(value)) {
+    contentError(path, "expected a positive integer");
   }
 }
 

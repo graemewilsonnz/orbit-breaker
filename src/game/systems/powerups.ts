@@ -86,15 +86,27 @@ export function applyPowerUp(powerup: PowerUpState, host: PowerUpHost): void {
   powerup.active = false;
 }
 
-export function chooseDropType(random: RandomSource): PowerUpType {
-  const roll = random.next();
-  if (roll < 0.38) {
-    return "twin";
+export interface DropContext {
+  readonly weaponLevel: number;
+  readonly shieldActive: boolean;
+  readonly bombCount: number;
+}
+
+export function chooseDropType(random: RandomSource, context?: DropContext): PowerUpType {
+  const weights = {
+    twin: context?.weaponLevel === 3 ? 0.12 : context?.weaponLevel === 1 ? 0.48 : 0.32,
+    shield: context?.shieldActive ? 0.08 : 0.38,
+    bomb: context?.bombCount === CONFIG.player.maxBombs ? 0 : 0.3,
+  } as const;
+  const total = weights.twin + weights.shield + weights.bomb;
+  let roll = random.next() * total;
+  for (const type of POWER_UP_TYPES) {
+    roll -= weights[type];
+    if (roll <= 0) {
+      return type;
+    }
   }
-  if (roll < 0.72) {
-    return "shield";
-  }
-  return "bomb";
+  return "twin";
 }
 
 export function getPowerUpColor(type: PowerUpType): string {

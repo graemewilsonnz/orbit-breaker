@@ -50,7 +50,7 @@ import {
   type WaveStats,
 } from "./waveOutcomes";
 
-export const DEFAULT_RUN_SEED = "orbit-breaker-m2";
+export const DEFAULT_RUN_SEED = "orbit-breaker-m3";
 
 export interface GameOptions {
   readonly seed?: RandomSeed;
@@ -209,6 +209,7 @@ export class Game implements CollisionHost {
     this.state.killStreak = 0;
     this.state.waveStats = createWaveStats();
     this.state.lastWaveOutcome = null;
+    this.state.scoreFeedback = null;
     this.state.shake = 0;
     this.state.stateTimer = 0;
     this.state.pausedFrom = "playing";
@@ -327,13 +328,24 @@ export class Game implements CollisionHost {
 
   addScore(base: number, source: EnemyState | null = null, flat = false): void {
     let amount = base;
-    if (source !== null && source.radius <= CONFIG.scoring.earlyKillRadius) {
+    const centreKill = source !== null && source.radius <= CONFIG.scoring.earlyKillRadius;
+    if (centreKill) {
       amount += Math.round(base * CONFIG.scoring.earlyKillBonus);
     }
     if (!flat) {
       amount *= this.state.player.multiplier;
     }
-    this.state.player.score += Math.round(amount);
+    const awarded = Math.round(amount);
+    this.state.player.score += awarded;
+    this.state.scoreFeedback = {
+      primary: `+${awarded}`,
+      secondary: centreKill
+        ? `CENTRE KILL · x${this.state.player.multiplier}`
+        : flat
+          ? "BONUS"
+          : `CHAIN x${this.state.player.multiplier}`,
+      timer: CONFIG.scoring.feedbackSeconds,
+    };
   }
 
   resolveEnemy(enemy: EnemyState, resolution: EnemyResolution): boolean {
@@ -382,10 +394,15 @@ export class Game implements CollisionHost {
     this.state.runMetrics.enemiesDestroyed += 1;
     this.addScore(enemy.score, enemy, false);
     this.state.killStreak += 1;
+    this.state.wave.killsSinceDrop += 1;
+    const previousMultiplier = this.state.player.multiplier;
     this.state.player.multiplier = Math.min(
       CONFIG.scoring.maxMultiplier,
       1 + Math.floor(this.state.killStreak / CONFIG.scoring.killsPerMultiplier),
     );
+    if (this.state.player.multiplier > previousMultiplier && this.state.scoreFeedback !== null) {
+      this.state.scoreFeedback.secondary = `MULTIPLIER UP · x${this.state.player.multiplier}`;
+    }
     this.addEffect({
       type: "burst",
       angle: enemy.angle,
@@ -458,6 +475,11 @@ export class Game implements CollisionHost {
     }
     this.state.killStreak = 0;
     this.state.player.multiplier = 1;
+    this.state.scoreFeedback = {
+      primary: "CHAIN LOST",
+      secondary: "MULTIPLIER RESET · x1",
+      timer: CONFIG.scoring.feedbackSeconds,
+    };
     this.clearNearbyEnemyBullets(125);
     this.addEffect({
       type: "burst",
@@ -556,6 +578,12 @@ export class Game implements CollisionHost {
   }
 
   private updatePlaying(dt: number, input: InputSnapshot): void {
+    if (this.state.scoreFeedback !== null) {
+      this.state.scoreFeedback.timer -= dt;
+      if (this.state.scoreFeedback.timer <= 0) {
+        this.state.scoreFeedback = null;
+      }
+    }
     const shotsBefore = this.state.playerShots.length;
     const dashCooldownBefore = this.state.player.dashCooldown;
     const moving = input.isDown("left") !== input.isDown("right");
@@ -612,6 +640,11 @@ export class Game implements CollisionHost {
         enemyCount: this.state.enemies.length,
         spawnEnemy: (type, angle) => this.spawnEnemy(type, angle, { origin: "wave" }),
         completeWave: () => this.completeWave(),
+        resolveStalledEnemies: () => {
+          for (const enemy of this.state.enemies) {
+            this.resolveEnemy(enemy, "escaped");
+          }
+        },
       });
     }
   }
@@ -698,6 +731,7 @@ export class Game implements CollisionHost {
     this.state.currentWave += 1;
     this.state.waveReached = Math.max(this.state.waveReached, this.state.currentWave);
     this.state.waveStats = createWaveStats();
+    this.state.powerups = [];
     startWave(this.state.wave, this.state.currentWave, this.gameplayRandom);
     this.state.runMetrics.waveStartedSeconds = this.state.runMetrics.elapsedSeconds;
     this.transitionTo("playing");
@@ -720,19 +754,25 @@ export class Game implements CollisionHost {
   }
 
   private maybeDropPowerUp(enemy: EnemyState): void {
-    const chance =
-      this.state.currentWave % 3 === 0
-        ? CONFIG.powerups.thirdWaveDropChance
-        : CONFIG.powerups.baseDropChance;
-    if (this.gameplayRandom.chance(chance)) {
+    if (
+      this.state.wave.dropsAwarded >= CONFIG.powerups.maxDropsPerWave ||
+      this.state.powerups.length >= CONFIG.powerups.maxActiveDrops
+    ) {
+      return;
+    }
+    const chance = CONFIG.powerups.waveDropChances[this.state.currentWave - 1] ?? 0;
+    const pityDrop = this.state.wave.killsSinceDrop >= CONFIG.powerups.pityKills;
+    if (pityDrop || this.gameplayRandom.chance(chance)) {
       this.state.powerups.push(
         createPowerUp(
-          chooseDropType(this.gameplayRandom),
+          chooseDropType(this.gameplayRandom, this.state.player),
           enemy.angle,
           Math.max(42, enemy.radius),
           this.gameplayRandom,
         ),
       );
+      this.state.wave.dropsAwarded += 1;
+      this.state.wave.killsSinceDrop = 0;
     }
   }
 
@@ -792,6 +832,9 @@ function createInitialState(presentationRandom: RandomSource): GameState {
       queue: [],
       elapsed: 0,
       completeDelay: 0,
+      dropsAwarded: 0,
+      killsSinceDrop: 0,
+      antiStallTriggered: false,
     },
     enemies: [],
     playerShots: [],
@@ -805,6 +848,7 @@ function createInitialState(presentationRandom: RandomSource): GameState {
     killStreak: 0,
     waveStats: createWaveStats(),
     lastWaveOutcome: null,
+    scoreFeedback: null,
     shake: 0,
     runMetrics: createRunMetrics(),
   };

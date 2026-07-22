@@ -23,6 +23,33 @@ export function renderHud(context: CanvasRenderingContext2D, state: ReadonlyGame
   context.fillText(`BOMBS ${state.player.bombCount}`, CONFIG.canvas.width - 22, 44);
   context.fillText(`WEAPON L${state.player.weaponLevel}`, CONFIG.canvas.width - 22, 70);
 
+  if (state.scoreFeedback !== null) {
+    const alpha = Math.min(1, state.scoreFeedback.timer * 2.5);
+    context.globalAlpha = alpha;
+    context.textAlign = "center";
+    context.fillStyle =
+      state.scoreFeedback.primary === "CHAIN LOST"
+        ? CONFIG.colors.enemyBullet
+        : CONFIG.colors.playerAccent;
+    context.font = "800 24px Segoe UI, Arial, sans-serif";
+    context.fillText(state.scoreFeedback.primary, CONFIG.canvas.width / 2, 82);
+    context.fillStyle = CONFIG.colors.text;
+    context.font = "700 13px Segoe UI, Arial, sans-serif";
+    context.fillText(state.scoreFeedback.secondary, CONFIG.canvas.width / 2, 111);
+    context.globalAlpha = 1;
+  } else if (state.wave.definition !== null && state.wave.elapsed < 3.2 && !state.boss) {
+    const alpha = Math.min(1, state.wave.elapsed * 2, (3.2 - state.wave.elapsed) * 1.5);
+    context.globalAlpha = Math.max(0, alpha);
+    context.textAlign = "center";
+    context.fillStyle = CONFIG.colors.text;
+    context.font = "700 18px Segoe UI, Arial, sans-serif";
+    context.fillText(state.wave.definition.name.toUpperCase(), CONFIG.canvas.width / 2, 82);
+    context.fillStyle = CONFIG.colors.mutedText;
+    context.font = "600 13px Segoe UI, Arial, sans-serif";
+    context.fillText(state.wave.definition.identity, CONFIG.canvas.width / 2, 108);
+    context.globalAlpha = 1;
+  }
+
   if (state.boss?.active) {
     renderBossBar(context, state.boss);
   }

@@ -76,6 +76,7 @@ export const CONFIG = {
     unusedBombVictoryBonus: 500,
     killsPerMultiplier: 5,
     maxMultiplier: 5,
+    feedbackSeconds: 1.15,
   },
   powerups: POWER_UP_CONFIG,
   colors: {

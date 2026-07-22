@@ -13,14 +13,14 @@ import {
 } from "../../src/game/systems/spawning";
 
 const CANONICAL_WAVE_TIMINGS = [
-  { count: 9, first: 0.85, last: 7.41 },
-  { count: 17, first: 0.65, last: 8.57 },
-  { count: 15, first: 0.4, last: 6.4 },
-  { count: 17, first: 0.4, last: 6.96 },
-  { count: 17, first: 0.4, last: 6.52 },
-  { count: 19, first: 0.5, last: 6.9 },
-  { count: 17, first: 0.5, last: 7.1 },
-  { count: 27, first: 0.35, last: 7.64 },
+  { count: 9, first: 0.85, last: 9 },
+  { count: 17, first: 0.65, last: 12.8 },
+  { count: 15, first: 0.4, last: 13.85 },
+  { count: 17, first: 0.4, last: 16.95 },
+  { count: 17, first: 0.4, last: 16.95 },
+  { count: 19, first: 0.5, last: 20.7 },
+  { count: 17, first: 0.5, last: 21.8 },
+  { count: 27, first: 0.35, last: 23.6 },
 ] as const;
 
 describe("wave spawn queues", () => {
@@ -47,6 +47,10 @@ describe("wave spawn queues", () => {
   it("keeps authored order when groups produce events at the same time", () => {
     const definition = {
       name: "Stable ordering fixture",
+      identity: "Test equal-time ordering.",
+      pressureBudget: 6,
+      targetDuration: [2, 4],
+      recoveryBeats: [{ at: 1, duration: 0.5 }],
       groups: [
         { type: "shooter", count: 2, start: 1, interval: 1, pattern: "sweep", step: 0 },
         { type: "mine", count: 1, start: 2, interval: 1, pattern: "sweep", step: 0 },
@@ -83,11 +87,11 @@ describe("wave spawn queues", () => {
     expect(repeated).toEqual(first);
     expect(first.slice(0, 6)).toEqual([
       { type: "drifter", time: 0.65, angle: 4.358878091762933 },
-      { type: "drifter", time: 1.11, angle: 1.21728543817314 },
-      { type: "drifter", time: 1.57, angle: 4.858878091762933 },
-      { type: "drifter", time: 2.0300000000000002, angle: 1.717285438173139 },
-      { type: "drifter", time: 2.49, angle: 5.358878091762933 },
-      { type: "drifter", time: 2.95, angle: 2.217285438173139 },
+      { type: "drifter", time: 1.13, angle: 1.21728543817314 },
+      { type: "drifter", time: 1.6099999999999999, angle: 4.858878091762933 },
+      { type: "drifter", time: 2.09, angle: 1.717285438173139 },
+      { type: "drifter", time: 2.57, angle: 5.358878091762933 },
+      { type: "drifter", time: 3.05, angle: 2.217285438173139 },
     ]);
   });
 });
@@ -185,6 +189,9 @@ function createWaveState(overrides: Partial<WaveRuntimeState> = {}): WaveRuntime
     queue: [],
     elapsed: 0,
     completeDelay: 0,
+    dropsAwarded: 0,
+    killsSinceDrop: 0,
+    antiStallTriggered: false,
     ...overrides,
   };
 }
@@ -195,6 +202,7 @@ function createCallbacks(overrides: Partial<WaveUpdateCallbacks> = {}): WaveUpda
     enemyCount: 0,
     spawnEnemy: vi.fn(),
     completeWave: vi.fn(),
+    resolveStalledEnemies: vi.fn(),
     ...overrides,
   };
 }
