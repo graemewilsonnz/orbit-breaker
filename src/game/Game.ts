@@ -1,4 +1,5 @@
 import { CONFIG } from "./config";
+import type { BossPhase } from "./content/boss";
 import type { EnemyType } from "./content/enemies";
 import { POWER_UP_TYPES, type PowerUpType } from "./content/powerups";
 import {
@@ -36,7 +37,8 @@ import {
   updateShieldLinks,
   type CollisionHost,
 } from "./systems/collision";
-import { createBoss, createEnemy, enemyColor, updateBoss, updateEnemy } from "./systems/enemies";
+import { createBoss, damageBossWithBomb, updateBoss } from "./systems/boss";
+import { createEnemy, enemyColor, updateEnemy } from "./systems/enemies";
 import type { EffectRequest, EnemyOverrides } from "./systems/host";
 import type { InputSnapshot } from "./systems/input";
 import { createPlayerState, playerPosition, resetPlayer, updatePlayer } from "./systems/player";
@@ -50,7 +52,7 @@ import {
   type WaveStats,
 } from "./waveOutcomes";
 
-export const DEFAULT_RUN_SEED = "orbit-breaker-m3";
+export const DEFAULT_RUN_SEED = "orbit-breaker-m4";
 
 export interface GameOptions {
   readonly seed?: RandomSeed;
@@ -75,6 +77,14 @@ export interface GameSnapshot {
   readonly powerups: number;
   readonly bossHealth: number | null;
   readonly bossPhase: number | null;
+  readonly bossShieldMode: string | null;
+  readonly bossElapsed: number | null;
+  readonly bossPhaseElapsed: number | null;
+  readonly bossTransitionTimer: number | null;
+  readonly bossWeakAngle: number | null;
+  readonly bossBeamActive: boolean;
+  readonly bossBeamCount: number;
+  readonly bossSafeArcCount: number;
   readonly pendingSpawns: number;
   readonly waveElapsed: number;
   readonly dashCooldown: number;
@@ -180,7 +190,7 @@ export class Game implements CollisionHost {
       this.handlePowerUpCollisionsOnly();
       this.updateEffects(dt);
       if (this.state.stateTimer <= 0) {
-        this.state.boss = createBoss();
+        this.state.boss = createBoss(this.state.player.angle);
         this.transitionTo("playing");
       }
       return;
@@ -223,11 +233,11 @@ export class Game implements CollisionHost {
     });
   }
 
-  startBossScenario(): void {
+  startBossScenario(phase: BossPhase = 1): void {
     this.startAtWave(8);
     this.state.wave.queue = [];
     this.state.enemies = [];
-    this.state.boss = createBoss();
+    this.state.boss = createBoss(this.state.player.angle, phase);
     this.state.currentWave = 8;
     this.state.waveReached = 8;
   }
@@ -438,12 +448,7 @@ export class Game implements CollisionHost {
     this.state.enemyBullets = [];
 
     if (this.state.boss?.active) {
-      this.state.boss.health -= 5;
-      this.state.boss.hitFlash = 0.1;
-      if (this.state.boss.health <= 0) {
-        this.state.boss.active = false;
-        this.defeatBoss();
-      }
+      damageBossWithBomb(this.state.boss, this);
     }
 
     const position = playerPosition(this.state.player);
@@ -502,8 +507,12 @@ export class Game implements CollisionHost {
   }
 
   defeatBoss(): void {
-    if (this.state.state === "victory") {
+    if (this.state.state === "victory" || this.state.boss?.defeatAwarded === true) {
       return;
+    }
+    if (this.state.boss !== null) {
+      this.state.boss.defeatAwarded = true;
+      this.state.boss.active = false;
     }
     this.addScore(CONFIG.boss.score, null, true);
     if (this.state.player.bombCount > 0) {
@@ -526,7 +535,7 @@ export class Game implements CollisionHost {
       duration: 0.9,
     });
     this.setShake(0.35);
-    this.emitAudio("waveClear");
+    this.emitAudio("bossDefeated");
     this.transitionTo("victory");
   }
 
@@ -549,6 +558,14 @@ export class Game implements CollisionHost {
       powerups: this.state.powerups.length,
       bossHealth: this.state.boss?.health ?? null,
       bossPhase: this.state.boss?.phase ?? null,
+      bossShieldMode: this.state.boss?.shieldMode ?? null,
+      bossElapsed: this.state.boss?.elapsed ?? null,
+      bossPhaseElapsed: this.state.boss?.phaseElapsed ?? null,
+      bossTransitionTimer: this.state.boss?.transitionTimer ?? null,
+      bossWeakAngle: this.state.boss?.weakAngle ?? null,
+      bossBeamActive: this.state.boss?.beams.some((beam) => beam.active) ?? false,
+      bossBeamCount: this.state.boss?.beams.length ?? 0,
+      bossSafeArcCount: this.state.boss?.safeArcs.length ?? 0,
       pendingSpawns: this.state.wave.queue.length,
       waveElapsed: this.state.wave.elapsed,
       dashCooldown: this.state.player.dashCooldown,

@@ -1,4 +1,4 @@
-import type { BossId, BossPhase } from "./content/boss";
+import type { BossId, BossPhase, BossShieldMode } from "./content/boss";
 import type { EnemyType } from "./content/enemies";
 import type { PowerUpType } from "./content/powerups";
 import type { WaveDefinition } from "./content/waves";
@@ -123,8 +123,16 @@ export interface BossBeamState {
   angle: number;
   width: number;
   timer: number;
+  warningTime: number;
+  activeTime: number;
   active: boolean;
-  done?: boolean;
+  hitPlayer: boolean;
+  done: boolean;
+}
+
+export interface BossSafeArcState {
+  angle: number;
+  width: number;
 }
 
 export interface BossState {
@@ -133,11 +141,25 @@ export interface BossState {
   maxHealth: number;
   rotation: number;
   phase: BossPhase;
+  elapsed: number;
+  phaseElapsed: number;
+  phaseDurations: Record<BossPhase, number | null>;
+  transitionTimer: number;
+  shieldMode: BossShieldMode;
+  shieldTimer: number;
+  weakAngle: number;
+  shieldCycle: number;
   attackTimer: number;
   spawnTimer: number;
   beams: BossBeamState[];
+  safeArcs: BossSafeArcState[];
   active: boolean;
+  defeatAwarded: boolean;
   hitFlash: number;
+  blockFlash: number;
+  feedbackAudioCooldown: number;
+  noticeText: string;
+  noticeTimer: number;
   phaseAwarded: Record<2 | 3, boolean>;
 }
 
@@ -210,11 +232,17 @@ export type ReadonlyProjectileState = Readonly<ProjectileState>;
 export type ReadonlyEnemyState = Readonly<EnemyState>;
 export type ReadonlyPowerUpState = Readonly<PowerUpState>;
 export type ReadonlyBossBeamState = Readonly<BossBeamState>;
+export type ReadonlyBossSafeArcState = Readonly<BossSafeArcState>;
 export type ReadonlyEffectState = Readonly<EffectState>;
 export type ReadonlyStarState = Readonly<StarState>;
 
-export interface ReadonlyBossState extends Omit<Readonly<BossState>, "beams" | "phaseAwarded"> {
+export interface ReadonlyBossState extends Omit<
+  Readonly<BossState>,
+  "beams" | "safeArcs" | "phaseDurations" | "phaseAwarded"
+> {
   readonly beams: readonly ReadonlyBossBeamState[];
+  readonly safeArcs: readonly ReadonlyBossSafeArcState[];
+  readonly phaseDurations: Readonly<Record<BossPhase, number | null>>;
   readonly phaseAwarded: Readonly<Record<2 | 3, boolean>>;
 }
 

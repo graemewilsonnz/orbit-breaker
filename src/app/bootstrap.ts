@@ -167,7 +167,7 @@ function processDebugCommands(runtime: Runtime): void {
         runtime.game.startAtWave(command.wave);
         break;
       case "start-boss":
-        runtime.game.startBossScenario();
+        runtime.game.startBossScenario(command.phase);
         break;
       case "set-invulnerable":
         runtime.game.setDebugInvulnerable(command.enabled);

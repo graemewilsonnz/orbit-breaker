@@ -109,8 +109,12 @@ describe("M1 run summary", () => {
     boss.beams.push({
       angle: bossGame.state.player.angle,
       width: 0.2,
-      timer: CONFIG.boss.warningTime,
+      timer: CONFIG.boss.phases[0].beam.warningTime,
+      warningTime: CONFIG.boss.phases[0].beam.warningTime,
+      activeTime: CONFIG.boss.phases[0].beam.activeTime,
       active: true,
+      hitPlayer: false,
+      done: false,
     });
     bossGame.step(FIXED_STEP_SECONDS, EMPTY_INPUT_SNAPSHOT);
     expect(bossGame.snapshot().run.lastDamageSource).toBe("boss-beam");

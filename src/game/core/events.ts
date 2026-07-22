@@ -13,6 +13,12 @@ export type AudioCue =
   | "powerup"
   | "waveClear"
   | "bossWarning"
+  | "bossShieldBlock"
+  | "bossHit"
+  | "bossWeakOpen"
+  | "bossBeamFire"
+  | "bossPhase"
+  | "bossDefeated"
   | "gameOver"
   | "dash"
   | "bomb";

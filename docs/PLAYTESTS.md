@@ -188,3 +188,70 @@ automated flows prove completion and rules, not final subjective difficulty.
 The Waves, scoring, and power curve checkpoint is implemented and deterministic. The run now has
 eight recognisable pressure shapes, explicit recovery, visible score risk/reward, bounded power
 growth, and anti-stall routes. Boss encounter design remains assigned to M4.
+
+## M4 mothership boss verification
+
+Date: 2026-07-23<br> Build: M4 mothership boss
+
+### Scope
+
+- Exercise the three authored phases: Lattice Lock, Radial Crosscurrent, and Orbit Collapse.
+- Verify the guarded, warned-opening, vulnerable-aperture, and shield-recovery cycle, including
+  distinct blocked-shot and core-hit feedback.
+- Verify radial beam warnings expose cyan safe arcs before activation, damage only within the
+  forgiving lethal lanes, and preserve an explicit recovery interval between volleys.
+- Verify Phase 1 remains add-free, Phase 2 caps Drifters at two, and Phase 3 caps combined Drifter
+  and Spiral Diver pressure at four without spawning adds during beams or weak windows.
+- Verify phase transitions suspend attacks, clear boss-origin hazards, record phase durations, and
+  award each phase bonus once.
+- Verify bombs cancel active beam pressure, apply bounded boss damage, and cannot skip a phase
+  boundary or duplicate final defeat scoring.
+- Inspect the boss-specific warning, block, hit, weak-open, beam-fire, phase, and defeat audio cues;
+  restrained pulse/shake feedback; HUD notices; debug state; and victory timing summary.
+
+### Automated evidence
+
+- Boss content validation requires exactly three descending health phases, minimum aperture and beam
+  warning windows, non-overlapping beams with a minimum safe-arc width, and internally consistent
+  add caps and timing.
+- Deterministic boss scenarios cover shield blocks, weak-aperture hits, beam warning and damage
+  timing, safe arcs, capped adds, clean phase changes, phase timing, score awards, bombs, defeat,
+  and the victory route. Seeded replay remains stable across independent presentation randomness,
+  and pause freezes boss, beam, and run timers.
+- The pinned fixed-step level-one controller reached victory in 81.02 seconds, with phase times of
+  18.82, 26.87, and 35.33 seconds, one life remaining, no pickups, and no bombs. Boss-add drops are
+  suppressed in this fixture so the unpowered 60-90 second result is isolated from loadout luck;
+  subjective player competence and encounter feel still require playtesting.
+- Existing state-route and damage-attribution scenarios continue to exercise boss-beam damage and
+  terminal victory integration with the expanded boss state.
+- The full Vitest suite passes with 157 tests across 18 files.
+
+### Manual visual inspection
+
+Passed in the in-app Chromium browser:
+
+- The opening and vulnerable gold aperture states were visually distinct, and the HUD phase and
+  shield-state text remained readable.
+- The Phase 1 two-beam warning exposed broad cyan safe arcs before activation. The Phase 3 active
+  pattern rendered four distinct beam wedges alongside capped Drifter and Spiral Diver pressure.
+- Browser logs reported no warnings or errors during the inspected boss states.
+
+### Manual verification boundary
+
+A complete human balance and first-time comprehension pass has not yet been recorded. Before M4
+review acceptance:
+
+- Complete at least three unpowered boss attempts and record total and per-phase durations against
+  the 60-90 second target.
+- Confirm a first-time player understands the gold weak aperture, blocked-shot feedback, cyan beam
+  safe arcs, and phase-transition downtime without debug guidance.
+- Complete full-encounter checks for effect restraint, audio separation, frame pacing, overlay fit,
+  and production-build console output.
+
+### M4 result
+
+The Mothership boss checkpoint is implemented with three deterministic phases, warned weak and safe
+arcs, bounded add pressure, clean transitions, idempotent scoring, dedicated audio feedback, and
+observable encounter timing. The key aperture, beam, add-pressure, HUD, and browser-log states pass
+targeted visual inspection. Manual unpowered balance and duration runs, first-time comprehension,
+and final audio acceptance remain pending.

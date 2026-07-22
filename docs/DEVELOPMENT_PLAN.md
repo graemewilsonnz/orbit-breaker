@@ -1,6 +1,6 @@
 # Orbit Breaker Development Plan
 
-Status: In execution — M3 implemented<br> Plan version: 0.4<br> Date: 2026-07-22
+Status: In execution — M4 implemented<br> Plan version: 0.5<br> Date: 2026-07-23
 
 ## 1. Outcome
 
@@ -342,6 +342,27 @@ Gate:
 - The encounter lasts approximately 60-90 seconds for a competent unpowered player.
 - Boss defeat cannot double-award score or leave the game in a stuck state.
 
+Implementation result:
+
+- Lattice Lock, Radial Crosscurrent, and Orbit Collapse define three health-bounded phases with
+  progressively tighter aperture, beam, recovery, rotation, and add-pressure contracts.
+- The shield cycles through guarded, warned opening, vulnerable, and recovery states. Player shots
+  only damage the core through the gold aperture while it is vulnerable; blocked shots receive
+  distinct visual, HUD, and audio feedback.
+- Radial attacks escalate from two to four beams and draw cyan safe arcs throughout the warning
+  window. Beam widths include collision forgiveness, each beam can damage only once per attack, and
+  recovery time separates volleys.
+- Phase 1 has no adds, Phase 2 caps Drifter pressure at two, and Phase 3 caps combined Drifter and
+  Spiral Diver pressure at four. Adds spawn only during guarded downtime, not during beams or weak
+  windows.
+- Phase transitions suspend attacks, clear boss-origin adds and hostile bullets, record phase
+  duration, and award the Phase 2 and Phase 3 bonuses once. Final defeat and its score are likewise
+  idempotent.
+- Dedicated cues distinguish warnings, shield blocks, core hits, weak openings, beam activation,
+  phase changes, and defeat. Restrained pulse and shake effects accompany the major beats.
+- The HUD and development panel expose phase names, shield mode, notices, boss and phase elapsed
+  time, transition time, beam state, and safe-arc count; the victory summary records phase timings.
+
 ### M5 - Presentation, audio, and complete UX
 
 Goal: make the game feel authored and complete without sacrificing clarity.
@@ -485,6 +506,8 @@ Approval of this plan also approves these defaults:
 6. Target keyboard desktop play and defer mobile, backend, and campaign work.
 7. Use seven review checkpoints, including foundation, each ending in a playable and tested build.
 
-M0 through M3 are now implemented. The eight-wave run has an explicit rhythm and pressure contract,
-legible score decisions, bounded power drops, and deterministic completion coverage. Mothership
-phase and encounter work continues in M4 after the M3 checkpoint is reviewed and accepted.
+M0 through M4 are now implemented. The eight-wave run leads into an authored three-phase mothership
+encounter with readable weak windows, warned beam safe arcs, bounded add pressure, idempotent
+scoring, dedicated audio feedback, and deterministic state/timing instrumentation. A human balance
+and first-time comprehension pass is still required to accept the encounter-duration and readability
+gates. Presentation, audio-mixer, and complete-UX work continues in M5.

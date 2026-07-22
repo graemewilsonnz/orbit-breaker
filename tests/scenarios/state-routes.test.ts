@@ -129,8 +129,12 @@ describe("game state routes", () => {
     boss.beams.push({
       angle: game.state.player.angle,
       width: 0.2,
-      timer: CONFIG.boss.warningTime,
+      timer: CONFIG.boss.phases[2].beam.warningTime,
+      warningTime: CONFIG.boss.phases[2].beam.warningTime,
+      activeTime: CONFIG.boss.phases[2].beam.activeTime,
       active: true,
+      hitPlayer: false,
+      done: false,
     });
     game.state.playerShots.push(
       createProjectile({

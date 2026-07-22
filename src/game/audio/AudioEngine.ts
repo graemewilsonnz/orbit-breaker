@@ -15,6 +15,12 @@ export const SOUND_NAMES = [
   "powerup",
   "waveClear",
   "bossWarning",
+  "bossShieldBlock",
+  "bossHit",
+  "bossWeakOpen",
+  "bossBeamFire",
+  "bossPhase",
+  "bossDefeated",
   "gameOver",
   "dash",
   "bomb",
@@ -112,6 +118,30 @@ export class AudioEngine {
         break;
       case "bossWarning":
         this.tone(180, 0.2, "sawtooth", 0.045, 65);
+        break;
+      case "bossShieldBlock":
+        this.tone(760, 0.075, "square", 0.028, -240);
+        this.tone(1080, 0.055, "sine", 0.018, -360, 0.018);
+        break;
+      case "bossHit":
+        this.tone(285, 0.065, "triangle", 0.03, 95);
+        break;
+      case "bossWeakOpen":
+        this.tone(420, 0.16, "sine", 0.032, 300);
+        this.tone(630, 0.18, "triangle", 0.025, 260, 0.055);
+        break;
+      case "bossBeamFire":
+        this.tone(92, 0.22, "sawtooth", 0.05, 75);
+        this.noise(0.1, 0.025, 0, 520);
+        break;
+      case "bossPhase":
+        this.tone(145, 0.26, "sawtooth", 0.045, 180);
+        this.tone(310, 0.22, "triangle", 0.03, 190, 0.12);
+        break;
+      case "bossDefeated":
+        this.tone(330, 0.28, "triangle", 0.045, 310);
+        this.tone(620, 0.32, "sine", 0.04, 280, 0.12);
+        this.noise(0.24, 0.035, 0, 780);
         break;
       case "gameOver":
         this.tone(190, 0.25, "sawtooth", 0.05, -80);

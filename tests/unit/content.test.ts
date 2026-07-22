@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { CONFIG, GAME_CONTENT, validateGameContent } from "../../src/game/config";
-import { BOSS_DEFINITIONS, BOSS_IDS, validateBossDefinitions } from "../../src/game/content/boss";
+import {
+  BOSS_DEFINITIONS,
+  BOSS_IDS,
+  BOSS_PHASES,
+  MIN_BOSS_BEAM_WARNING_SECONDS,
+  MIN_BOSS_OPENING_WARNING_SECONDS,
+  MIN_BOSS_SAFE_ARC_WIDTH,
+  validateBossDefinitions,
+} from "../../src/game/content/boss";
 import {
   ENEMY_DEFINITIONS,
   ENEMY_TYPES,
@@ -114,16 +122,87 @@ describe("typed M1 content contract", () => {
         },
       },
       boss: {
-        health: 80,
-        rotationSpeed: 0.8,
-        phase2Threshold: 55,
-        phase3Threshold: 25,
+        health: 150,
         score: 5000,
+        bombDamage: 8,
         coreRadius: 58,
         panelRadius: 72,
-        panelWidth: 0.55,
-        warningTime: 0.95,
-        beamTime: 0.52,
+        panelWidth: 0.46,
+        panelCount: 8,
+        transitionTime: 1.15,
+        phases: [
+          {
+            phase: 1,
+            name: "Lattice Lock",
+            healthFloor: 100,
+            rotationSpeed: 0.52,
+            shield: {
+              guardedTime: 2,
+              openingWarning: 0.85,
+              vulnerableTime: 2.3,
+              recoveryTime: 0.75,
+              apertureWidth: 0.9,
+            },
+            beam: {
+              count: 2,
+              width: 0.58,
+              warningTime: 1.15,
+              activeTime: 0.55,
+              recoveryTime: 4,
+              initialDelay: 3.4,
+            },
+            adds: { types: [], interval: 0, initialDelay: 0, maxActive: 0 },
+          },
+          {
+            phase: 2,
+            name: "Radial Crosscurrent",
+            healthFloor: 50,
+            rotationSpeed: 0.72,
+            shield: {
+              guardedTime: 1.9,
+              openingWarning: 0.8,
+              vulnerableTime: 2.15,
+              recoveryTime: 0.75,
+              apertureWidth: 0.82,
+            },
+            beam: {
+              count: 3,
+              width: 0.62,
+              warningTime: 1.08,
+              activeTime: 0.58,
+              recoveryTime: 3.2,
+              initialDelay: 2.4,
+            },
+            adds: { types: ["drifter"], interval: 7.4, initialDelay: 4.6, maxActive: 2 },
+          },
+          {
+            phase: 3,
+            name: "Orbit Collapse",
+            healthFloor: 0,
+            rotationSpeed: 0.92,
+            shield: {
+              guardedTime: 1.7,
+              openingWarning: 0.75,
+              vulnerableTime: 2,
+              recoveryTime: 0.7,
+              apertureWidth: 0.74,
+            },
+            beam: {
+              count: 4,
+              width: 0.64,
+              warningTime: 1,
+              activeTime: 0.6,
+              recoveryTime: 2.7,
+              initialDelay: 2,
+            },
+            adds: {
+              types: ["drifter", "spiral"],
+              interval: 6.2,
+              initialDelay: 3,
+              maxActive: 4,
+            },
+          },
+        ],
       },
       scoring: {
         earlyKillRadius: 130,
@@ -178,6 +257,56 @@ describe("typed M1 content contract", () => {
     expect(POWER_UP_TYPES).toEqual(["twin", "shield", "bomb"]);
     expect(BOSS_IDS).toEqual(["mothership"]);
     expect(WAVE_PATTERNS).toEqual(["sweep", "mirror", "fan", "random"]);
+  });
+
+  it("pins the authored M4 phase and fairness contract", () => {
+    expect(BOSS_PHASES).toEqual([1, 2, 3]);
+    expect(
+      BOSS_DEFINITIONS.mothership.phases.map((phase) => ({
+        phase: phase.phase,
+        floor: phase.healthFloor,
+        beamCount: phase.beam.count,
+        warning: phase.beam.warningTime,
+        safeArc: CONFIG.TAU / phase.beam.count - phase.beam.width,
+        adds: phase.adds.types,
+        maxAdds: phase.adds.maxActive,
+      })),
+    ).toEqual([
+      {
+        phase: 1,
+        floor: 100,
+        beamCount: 2,
+        warning: 1.15,
+        safeArc: CONFIG.TAU / 2 - 0.58,
+        adds: [],
+        maxAdds: 0,
+      },
+      {
+        phase: 2,
+        floor: 50,
+        beamCount: 3,
+        warning: 1.08,
+        safeArc: CONFIG.TAU / 3 - 0.62,
+        adds: ["drifter"],
+        maxAdds: 2,
+      },
+      {
+        phase: 3,
+        floor: 0,
+        beamCount: 4,
+        warning: 1,
+        safeArc: CONFIG.TAU / 4 - 0.64,
+        adds: ["drifter", "spiral"],
+        maxAdds: 4,
+      },
+    ]);
+    for (const phase of BOSS_DEFINITIONS.mothership.phases) {
+      expect(phase.shield.openingWarning).toBeGreaterThanOrEqual(MIN_BOSS_OPENING_WARNING_SECONDS);
+      expect(phase.beam.warningTime).toBeGreaterThanOrEqual(MIN_BOSS_BEAM_WARNING_SECONDS);
+      expect(CONFIG.TAU / phase.beam.count - phase.beam.width).toBeGreaterThanOrEqual(
+        MIN_BOSS_SAFE_ARC_WIDTH,
+      );
+    }
   });
 
   it("pins every authored wave group", () => {
@@ -315,12 +444,52 @@ describe("runtime content validation", () => {
     const invalid = {
       mothership: {
         ...BOSS_DEFINITIONS.mothership,
-        phase2Threshold: 20,
-        phase3Threshold: 25,
+        phases: BOSS_DEFINITIONS.mothership.phases.map((phase, index) =>
+          index === 1 ? { ...phase, healthFloor: 110 } : phase,
+        ),
       },
     };
     expect(() => validateBossDefinitions(invalid)).toThrow(
-      "health > phase2Threshold > phase3Threshold",
+      "bosses.mothership.phases[1].healthFloor: must descend from the previous phase boundary",
+    );
+  });
+
+  it("rejects boss attacks that shorten the warning or erase the authored safe arc", () => {
+    const shortWarning = {
+      mothership: {
+        ...BOSS_DEFINITIONS.mothership,
+        phases: BOSS_DEFINITIONS.mothership.phases.map((phase, index) =>
+          index === 0
+            ? {
+                ...phase,
+                beam: { ...phase.beam, warningTime: MIN_BOSS_BEAM_WARNING_SECONDS - 0.01 },
+              }
+            : phase,
+        ),
+      },
+    };
+    expect(() => validateBossDefinitions(shortWarning)).toThrow(
+      `bosses.mothership.phases[0].beam.warningTime: must be at least ${MIN_BOSS_BEAM_WARNING_SECONDS} seconds`,
+    );
+
+    const noSafeArc = {
+      mothership: {
+        ...BOSS_DEFINITIONS.mothership,
+        phases: BOSS_DEFINITIONS.mothership.phases.map((phase, index) =>
+          index === 2
+            ? {
+                ...phase,
+                beam: {
+                  ...phase.beam,
+                  width: CONFIG.TAU / phase.beam.count - MIN_BOSS_SAFE_ARC_WIDTH + 0.01,
+                },
+              }
+            : phase,
+        ),
+      },
+    };
+    expect(() => validateBossDefinitions(noSafeArc)).toThrow(
+      `bosses.mothership.phases[2].beam.width: must leave a safe arc at least ${MIN_BOSS_SAFE_ARC_WIDTH} radians wide`,
     );
   });
 

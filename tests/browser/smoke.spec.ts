@@ -10,6 +10,16 @@ interface BrowserSnapshot {
   readonly dashCooldown: number;
   readonly enemies: number;
   readonly pendingSpawns: number;
+  readonly bossHealth: number | null;
+  readonly bossPhase: number | null;
+  readonly bossShieldMode: string | null;
+  readonly bossElapsed: number | null;
+  readonly bossPhaseElapsed: number | null;
+  readonly bossTransitionTimer: number | null;
+  readonly bossWeakAngle: number | null;
+  readonly bossBeamActive: boolean;
+  readonly bossBeamCount: number;
+  readonly bossSafeArcCount: number;
   readonly run: {
     readonly accuracyPercent: number;
     readonly elapsedSeconds: number;
@@ -92,6 +102,76 @@ test.describe("Orbit Breaker browser smoke", () => {
     await expectState(page, "playing");
     expect(await snapshot(page)).toMatchObject({ currentWave: 1, score: 0, lives: 3 });
 
+    expect(errors).toEqual([]);
+  });
+
+  test("renders the M4 aperture and beam warning, then freezes the encounter while paused", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    const errors = collectBrowserErrors(page);
+    await page.goto("/?seed=m4-browser-flow");
+    await waitForDebugRuntime(page);
+    await page.evaluate(() => {
+      window.__ORBIT_DEBUG__?.dispatch({ type: "start-boss" });
+      window.__ORBIT_DEBUG__?.dispatch({ type: "set-invulnerable", enabled: true });
+    });
+    await page.waitForFunction(() => {
+      const current = window.__ORBIT_DEBUG__?.snapshot() as BrowserSnapshot | undefined;
+      return current?.bossShieldMode === "opening" && typeof current.bossWeakAngle === "number";
+    });
+
+    const opening = await snapshot(page);
+    expect(opening).toMatchObject({
+      state: "playing",
+      bossHealth: expect.any(Number),
+      bossPhase: 1,
+      bossShieldMode: "opening",
+      bossBeamCount: 0,
+      bossSafeArcCount: 0,
+    });
+    expect(opening.bossWeakAngle).toEqual(expect.any(Number));
+    const canvas = page.locator("#gameCanvas");
+    const apertureFrame = await canvas.screenshot();
+    expect(apertureFrame.byteLength).toBeGreaterThan(1_000);
+
+    await page.evaluate(() =>
+      window.__ORBIT_DEBUG__?.dispatch({ type: "set-time-scale", scale: 2 }),
+    );
+    await page.waitForFunction(() => {
+      const current = window.__ORBIT_DEBUG__?.snapshot() as BrowserSnapshot | undefined;
+      return (
+        current !== undefined &&
+        current.bossBeamCount > 0 &&
+        current.bossSafeArcCount === current.bossBeamCount &&
+        !current.bossBeamActive
+      );
+    });
+
+    const warning = await snapshot(page);
+    expect(warning).toMatchObject({
+      state: "playing",
+      bossPhase: 1,
+      bossBeamActive: false,
+      bossBeamCount: 2,
+      bossSafeArcCount: 2,
+    });
+    const warningFrame = await canvas.screenshot();
+    expect(warningFrame.equals(apertureFrame)).toBe(false);
+
+    await page.keyboard.press("KeyP");
+    await expectState(page, "paused");
+    const paused = await snapshot(page);
+    const pausedState = await deterministicState(page);
+    await page.waitForTimeout(150);
+
+    expect(await deterministicState(page)).toBe(pausedState);
+    expect((await snapshot(page)).bossElapsed).toBe(paused.bossElapsed);
+    const pausedFrame = await canvas.screenshot();
+    expect(pausedFrame.equals(warningFrame)).toBe(false);
+
+    await page.keyboard.press("Escape");
+    await expectState(page, "playing");
     expect(errors).toEqual([]);
   });
 

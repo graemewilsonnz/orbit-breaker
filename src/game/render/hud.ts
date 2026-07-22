@@ -1,4 +1,5 @@
 import { CONFIG } from "../config";
+import { getBossPhaseDefinition } from "../content/boss";
 import { accuracyPercent, damageSourceLabel, type ReadonlyRunMetrics } from "../runMetrics";
 import type { ReadonlyBossState, ReadonlyGameState } from "../state";
 
@@ -70,6 +71,11 @@ function renderBossBar(context: CanvasRenderingContext2D, boss: ReadonlyBossStat
   context.fillRect(x, y, width, height);
   context.fillStyle = CONFIG.colors.boss;
   context.fillRect(x, y, width * percentage, height);
+  context.fillStyle = "rgba(255, 255, 255, 0.72)";
+  for (const phase of CONFIG.boss.phases.slice(0, -1)) {
+    const markerX = x + width * (phase.healthFloor / boss.maxHealth);
+    context.fillRect(markerX - 1, y, 2, height);
+  }
   context.strokeStyle = "rgba(255, 255, 255, 0.65)";
   context.lineWidth = 1;
   context.strokeRect(x, y, width, height);
@@ -77,8 +83,43 @@ function renderBossBar(context: CanvasRenderingContext2D, boss: ReadonlyBossStat
   context.textBaseline = "top";
   context.font = "600 13px Segoe UI, Arial, sans-serif";
   context.fillStyle = CONFIG.colors.text;
-  context.fillText("MOTHERSHIP", CONFIG.canvas.width / 2, y + 17);
+  const phase = getBossPhaseDefinition(boss.phase);
+  context.fillText(
+    `MOTHERSHIP · PHASE ${boss.phase}/3 · ${phase.name.toUpperCase()}`,
+    CONFIG.canvas.width / 2,
+    y + 17,
+  );
+  context.fillStyle =
+    boss.shieldMode === "vulnerable" ? CONFIG.colors.bossCore : CONFIG.colors.text;
+  context.font = "700 12px Segoe UI, Arial, sans-serif";
+  context.fillText(
+    boss.noticeTimer > 0 ? boss.noticeText : bossStatus(boss),
+    CONFIG.canvas.width / 2,
+    y + 36,
+  );
   context.restore();
+}
+
+function bossStatus(boss: ReadonlyBossState): string {
+  if (boss.transitionTimer > 0) {
+    return "PHASE SHIFT · ATTACKS SUSPENDED";
+  }
+  if (boss.beams.some((beam) => beam.active)) {
+    return "BEAMS ACTIVE";
+  }
+  if (boss.beams.length > 0) {
+    return "RADIAL LOCK · MOVE TO CYAN SAFE ARC";
+  }
+  switch (boss.shieldMode) {
+    case "guarded":
+      return "SHIELD LOCKED";
+    case "opening":
+      return "APERTURE FORMING · FOLLOW GOLD";
+    case "vulnerable":
+      return "CORE EXPOSED · FIRE THROUGH GOLD";
+    case "recovering":
+      return "SHIELD REFORMING";
+  }
 }
 
 export function renderOverlay(context: CanvasRenderingContext2D, state: ReadonlyGameState): void {
@@ -140,7 +181,18 @@ export function renderOverlay(context: CanvasRenderingContext2D, state: Readonly
       headline(context, "VICTORY", 212, 56);
       subline(context, `FINAL SCORE ${formatScore(state.player.score)}`, 282);
       renderRunSummary(context, state.runMetrics, 332);
-      subline(context, "PRESS ENTER TO PLAY AGAIN", 458, CONFIG.colors.playerAccent);
+      if (state.boss !== null) {
+        const durations = state.boss.phaseDurations;
+        subline(
+          context,
+          `BOSS ${formatDuration(state.boss.elapsed)}  ` +
+            `P1 ${formatBossPhaseDuration(durations[1])}  ` +
+            `P2 ${formatBossPhaseDuration(durations[2])}  ` +
+            `P3 ${formatBossPhaseDuration(durations[3])}`,
+          428,
+        );
+      }
+      subline(context, "PRESS ENTER TO PLAY AGAIN", 470, CONFIG.colors.playerAccent);
       return;
     case "title":
       drawTitle(context);
@@ -277,6 +329,10 @@ function formatDuration(seconds: number): string {
 
 function formatFirstAction(seconds: number | null): string {
   return seconds === null ? "--" : `${seconds.toFixed(1)}s`;
+}
+
+function formatBossPhaseDuration(seconds: number | null): string {
+  return seconds === null ? "--:--" : formatDuration(seconds);
 }
 
 export function formatScore(score: number): string {

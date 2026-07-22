@@ -3,10 +3,10 @@
 Orbit Breaker is a desktop-first radial Canvas 2D arcade shooter. The player moves around a fixed
 outer orbit, fires inward, survives eight waves, and defeats a three-phase mothership.
 
-Current checkpoint: **M3 — Waves, scoring, and power curve**. Eight authored encounters now carry
-explicit pressure budgets, target durations, and recovery beats. Centre kills, chain multipliers,
-and multiplier loss are surfaced immediately, while capped pity drops keep each seed survivable
-without allowing pickup clutter.
+Current checkpoint: **M4 — Mothership boss**. The boss now has three authored phases built around a
+warned gold weak aperture, radial beam patterns with cyan safe arcs, clean phase transitions, and
+capped add pressure. Phase and defeat rewards are guarded against duplicate scoring, while dedicated
+boss audio, HUD notices, and debug timing make each attack and state change observable.
 
 ## Requirements
 
@@ -24,8 +24,9 @@ Open the local URL printed by Vite. The game uses a deterministic run seed; pass
 reproduce a run. During development, `?debug=1` opens the debug panel.
 
 The development panel includes wave select, seed control, first-action timing, enemy-specific damage
-attribution, live wave outcomes, wave timing, and performance counters for repeatable M3 regression
-runs.
+attribution, live wave outcomes, wave timing, boss health and phase state, encounter and phase
+timers, transition timing, beam and safe-arc counts, and performance counters for repeatable M4
+regression runs.
 
 ## Commands
 

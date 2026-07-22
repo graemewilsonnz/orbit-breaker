@@ -9,6 +9,7 @@ import type {
   ReadonlyPowerUpState,
   ReadonlyProjectileState,
 } from "../state";
+import { currentBossPhase, getBossWeakArc } from "../systems/boss";
 import { enemyContactRadius } from "../systems/collision";
 import { renderEffects } from "./effects";
 import { renderHud, renderOverlay } from "./hud";
@@ -1256,6 +1257,8 @@ function drawShieldCarrier(context: CanvasRenderingContext2D, size: number, age:
 
 function drawBoss(context: CanvasRenderingContext2D, boss: ReadonlyBossState): void {
   drawBossBeams(context, boss);
+  drawBossSafeArcs(context, boss);
+  drawBossWeakWindow(context, boss);
   drawBossCore(context, boss);
 }
 
@@ -1296,13 +1299,98 @@ function drawBossBeams(context: CanvasRenderingContext2D, boss: ReadonlyBossStat
   }
 }
 
-function drawBossCore(context: CanvasRenderingContext2D, boss: ReadonlyBossState): void {
-  const flash = boss.hitFlash > 0;
+function drawBossSafeArcs(context: CanvasRenderingContext2D, boss: ReadonlyBossState): void {
+  if (boss.safeArcs.length === 0 || boss.beams.some((beam) => beam.active)) {
+    return;
+  }
+
+  const radius = CONFIG.arena.playerRadius - 24;
+  const pulse = 0.72 + Math.sin((boss.beams[0]?.timer ?? 0) * 12) * 0.16;
+  context.save();
+  context.translate(CONFIG.arena.centerX, CONFIG.arena.centerY);
+  context.strokeStyle = CONFIG.colors.player;
+  context.fillStyle = CONFIG.colors.player;
+  context.shadowColor = CONFIG.colors.player;
+  context.shadowBlur = 10;
+  context.globalAlpha = pulse;
+  context.lineWidth = 7;
+  context.lineCap = "round";
+
+  for (const arc of boss.safeArcs) {
+    const halfWidth = Math.max(0.08, arc.width * 0.5 - 0.04);
+    context.beginPath();
+    context.arc(0, 0, radius, arc.angle - halfWidth, arc.angle + halfWidth);
+    context.stroke();
+
+    context.save();
+    context.rotate(arc.angle);
+    context.beginPath();
+    context.moveTo(radius - 13, 0);
+    context.lineTo(radius - 27, -8);
+    context.lineTo(radius - 27, 8);
+    context.closePath();
+    context.fill();
+    context.restore();
+  }
+  context.restore();
+}
+
+function drawBossWeakWindow(context: CanvasRenderingContext2D, boss: ReadonlyBossState): void {
+  if (
+    boss.transitionTimer > 0 ||
+    (boss.shieldMode !== "opening" && boss.shieldMode !== "vulnerable")
+  ) {
+    return;
+  }
+
+  const aperture = getBossWeakArc(boss);
+  const halfWidth = aperture.width * 0.5;
+  const innerRadius = CONFIG.boss.panelRadius + 6;
+  const outerRadius = CONFIG.arena.playerRadius - 38;
+  const opening = boss.shieldMode === "opening";
+  const pulse = 0.52 + Math.sin(boss.shieldTimer * 18) * 0.12;
 
   context.save();
   context.translate(CONFIG.arena.centerX, CONFIG.arena.centerY);
-  context.shadowColor = CONFIG.colors.boss;
-  context.shadowBlur = 18;
+  context.fillStyle = CONFIG.colors.bossCore;
+  context.strokeStyle = CONFIG.colors.bossCore;
+  context.shadowColor = CONFIG.colors.bossCore;
+  context.shadowBlur = opening ? 8 : 15;
+  context.globalAlpha = opening ? pulse * 0.32 : 0.2;
+  context.beginPath();
+  context.arc(0, 0, outerRadius, aperture.angle - halfWidth, aperture.angle + halfWidth);
+  context.arc(0, 0, innerRadius, aperture.angle + halfWidth, aperture.angle - halfWidth, true);
+  context.closePath();
+  context.fill();
+
+  context.globalAlpha = opening ? pulse : 0.95;
+  context.lineWidth = opening ? 4 : 8;
+  context.lineCap = "round";
+  context.beginPath();
+  context.arc(0, 0, outerRadius, aperture.angle - halfWidth, aperture.angle + halfWidth);
+  context.stroke();
+  context.lineWidth = 3;
+  for (const edge of [-halfWidth, halfWidth]) {
+    const angle = aperture.angle + edge;
+    context.beginPath();
+    context.moveTo(Math.cos(angle) * (innerRadius - 2), Math.sin(angle) * (innerRadius - 2));
+    context.lineTo(Math.cos(angle) * (innerRadius + 22), Math.sin(angle) * (innerRadius + 22));
+    context.stroke();
+  }
+  context.restore();
+}
+
+function drawBossCore(context: CanvasRenderingContext2D, boss: ReadonlyBossState): void {
+  const flash = boss.hitFlash > 0;
+  const phase = currentBossPhase(boss);
+  const aperture = getBossWeakArc(boss);
+  const apertureVisible = boss.shieldMode === "opening" || boss.shieldMode === "vulnerable";
+  const shieldAlpha = boss.shieldMode === "recovering" ? 0.62 : 1;
+
+  context.save();
+  context.translate(CONFIG.arena.centerX, CONFIG.arena.centerY);
+  context.shadowColor = boss.blockFlash > 0 ? "#ffffff" : CONFIG.colors.boss;
+  context.shadowBlur = boss.blockFlash > 0 ? 28 : 18;
 
   context.fillStyle = flash ? "#ffffff" : "rgba(240, 91, 120, 0.32)";
   context.beginPath();
@@ -1326,20 +1414,52 @@ function drawBossCore(context: CanvasRenderingContext2D, boss: ReadonlyBossState
   context.arc(0, 0, CONFIG.boss.coreRadius * 0.34, 0, CONFIG.TAU);
   context.stroke();
 
-  context.rotate(boss.rotation);
-  for (let index = 0; index < 4; index += 1) {
-    const start = (index * CONFIG.TAU) / 4 - CONFIG.boss.panelWidth * 0.5;
-    const end = (index * CONFIG.TAU) / 4 + CONFIG.boss.panelWidth * 0.5;
-    context.strokeStyle = CONFIG.colors.shield;
-    context.lineWidth = 13;
-    context.lineCap = "round";
+  context.globalAlpha = shieldAlpha;
+  context.strokeStyle = boss.blockFlash > 0 ? "#ffffff" : CONFIG.colors.shield;
+  context.lineWidth = 13;
+  context.lineCap = "round";
+  context.beginPath();
+  if (apertureVisible) {
+    context.arc(
+      0,
+      0,
+      CONFIG.boss.panelRadius,
+      aperture.angle + aperture.width * 0.5,
+      aperture.angle - aperture.width * 0.5 + CONFIG.TAU,
+    );
+  } else {
+    context.arc(0, 0, CONFIG.boss.panelRadius, 0, CONFIG.TAU);
+  }
+  context.stroke();
+
+  context.globalAlpha = shieldAlpha * 0.72;
+  context.strokeStyle = "rgba(255, 255, 255, 0.72)";
+  context.lineWidth = 2;
+  const panelLength = CONFIG.boss.panelWidth * CONFIG.boss.panelRadius;
+  const panelSpacing = (CONFIG.TAU * CONFIG.boss.panelRadius) / CONFIG.boss.panelCount;
+  context.setLineDash([panelLength, panelSpacing - panelLength]);
+  context.lineDashOffset = -boss.rotation * CONFIG.boss.panelRadius;
+  context.beginPath();
+  if (apertureVisible) {
+    context.arc(
+      0,
+      0,
+      CONFIG.boss.panelRadius,
+      aperture.angle + aperture.width * 0.5,
+      aperture.angle - aperture.width * 0.5 + CONFIG.TAU,
+    );
+  } else {
+    context.arc(0, 0, CONFIG.boss.panelRadius, 0, CONFIG.TAU);
+  }
+  context.stroke();
+  context.setLineDash([]);
+
+  if (boss.transitionTimer > 0) {
+    context.globalAlpha = 0.35 + (boss.transitionTimer / CONFIG.boss.transitionTime) * 0.45;
+    context.strokeStyle = CONFIG.colors.bossCore;
+    context.lineWidth = 5;
     context.beginPath();
-    context.arc(0, 0, CONFIG.boss.panelRadius, start, end);
-    context.stroke();
-    context.strokeStyle = "rgba(255, 255, 255, 0.58)";
-    context.lineWidth = 2;
-    context.beginPath();
-    context.arc(0, 0, CONFIG.boss.panelRadius, start, end);
+    context.arc(0, 0, CONFIG.boss.panelRadius + 15 + phase.phase * 3, 0, CONFIG.TAU);
     context.stroke();
   }
 

@@ -1,4 +1,5 @@
 import { ENEMY_TYPES, isEnemyType, type EnemyType } from "../content/enemies";
+import type { BossPhase } from "../content/boss";
 import { damageSourceLabel, type DamageSource } from "../runMetrics";
 import type { WaveOutcome, WaveStats } from "../waveOutcomes";
 
@@ -10,7 +11,7 @@ export type DebugCommand =
   | Readonly<{ type: "set-seed"; seed: string; restart: boolean }>
   | Readonly<{ type: "restart" }>
   | Readonly<{ type: "start-wave"; wave: DebugWave }>
-  | Readonly<{ type: "start-boss" }>
+  | Readonly<{ type: "start-boss"; phase?: BossPhase }>
   | Readonly<{ type: "set-invulnerable"; enabled: boolean }>
   | Readonly<{ type: "set-time-scale"; scale: DebugTimeScale }>
   | Readonly<{ type: "set-dash-cooldown"; seconds: number }>
@@ -30,6 +31,14 @@ export interface DebugSnapshot {
   readonly enemyBullets: number;
   readonly powerups: number;
   readonly bossHealth: number | null;
+  readonly bossPhase: number | null;
+  readonly bossShieldMode: string | null;
+  readonly bossElapsed: number | null;
+  readonly bossPhaseElapsed: number | null;
+  readonly bossTransitionTimer: number | null;
+  readonly bossBeamActive: boolean;
+  readonly bossBeamCount: number;
+  readonly bossSafeArcCount: number;
   readonly pendingSpawns: number;
   readonly waveStats: Readonly<WaveStats>;
   readonly lastWaveOutcome: Readonly<WaveOutcome> | null;
@@ -294,6 +303,13 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
     enemyBullets: requireElement<HTMLElement>(root, '[data-value="enemy-bullets"]'),
     powerups: requireElement<HTMLElement>(root, '[data-value="powerups"]'),
     bossHealth: requireElement<HTMLElement>(root, '[data-value="boss-health"]'),
+    bossPhase: requireElement<HTMLElement>(root, '[data-value="boss-phase"]'),
+    bossMode: requireElement<HTMLElement>(root, '[data-value="boss-mode"]'),
+    bossTime: requireElement<HTMLElement>(root, '[data-value="boss-time"]'),
+    bossPhaseTime: requireElement<HTMLElement>(root, '[data-value="boss-phase-time"]'),
+    bossTransition: requireElement<HTMLElement>(root, '[data-value="boss-transition"]'),
+    bossBeams: requireElement<HTMLElement>(root, '[data-value="boss-beams"]'),
+    bossSafeArcs: requireElement<HTMLElement>(root, '[data-value="boss-safe-arcs"]'),
     pendingSpawns: requireElement<HTMLElement>(root, '[data-value="pending-spawns"]'),
     requiredEnemies: requireElement<HTMLElement>(root, '[data-value="wave-required"]'),
     destroyedEnemies: requireElement<HTMLElement>(root, '[data-value="wave-destroyed"]'),
@@ -360,7 +376,7 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
         break;
       }
       case "start-boss":
-        options.dispatch({ type: "start-boss" });
+        options.dispatch({ type: "start-boss", phase: parseBossPhase(button.dataset.phase) });
         break;
       case "single-step":
         options.dispatch({ type: "single-step" });
@@ -438,6 +454,19 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
     values.powerups.textContent = formatNumber(snapshot.powerups);
     values.bossHealth.textContent =
       snapshot.bossHealth === null ? "\u2014" : formatNumber(snapshot.bossHealth);
+    values.bossPhase.textContent =
+      snapshot.bossPhase === null ? "\u2014" : formatNumber(snapshot.bossPhase);
+    values.bossMode.textContent = snapshot.bossShieldMode ?? "\u2014";
+    values.bossTime.textContent =
+      snapshot.bossElapsed === null ? "\u2014" : formatDuration(snapshot.bossElapsed);
+    values.bossPhaseTime.textContent =
+      snapshot.bossPhaseElapsed === null ? "\u2014" : formatDuration(snapshot.bossPhaseElapsed);
+    values.bossTransition.textContent =
+      snapshot.bossTransitionTimer === null
+        ? "\u2014"
+        : formatSeconds(snapshot.bossTransitionTimer);
+    values.bossBeams.textContent = `${snapshot.bossBeamCount}${snapshot.bossBeamActive ? " active" : ""}`;
+    values.bossSafeArcs.textContent = formatNumber(snapshot.bossSafeArcCount);
     values.pendingSpawns.textContent = formatNumber(snapshot.pendingSpawns);
     values.requiredEnemies.textContent = formatNumber(snapshot.waveStats.requiredEnemiesSpawned);
     values.destroyedEnemies.textContent = formatNumber(snapshot.waveStats.enemiesDestroyed);
@@ -531,7 +560,9 @@ function panelMarkup(panelId: number): string {
         <legend>Scenario</legend>
         <div class="ob-debug__buttons">${waveButtons}</div>
         <div class="ob-debug__row">
-          <button type="button" data-command="start-boss">Start boss</button>
+          <button type="button" data-command="start-boss" data-phase="1">Start boss</button>
+          <button type="button" data-command="start-boss" data-phase="2">Boss P2</button>
+          <button type="button" data-command="start-boss" data-phase="3">Boss P3</button>
           <button type="button" data-command="force-state" data-state="gameOver">Game over</button>
           <button type="button" data-command="force-state" data-state="victory">Victory</button>
           <button type="button" data-command="spawn-player-contact">Test contact</button>
@@ -583,6 +614,13 @@ function panelMarkup(panelId: number): string {
           ${metric("Bullets", "enemy-bullets")}
           ${metric("Power-ups", "powerups")}
           ${metric("Boss HP", "boss-health")}
+          ${metric("Boss phase", "boss-phase")}
+          ${metric("Shield", "boss-mode")}
+          ${metric("Boss time", "boss-time")}
+          ${metric("Phase time", "boss-phase-time")}
+          ${metric("Transition", "boss-transition")}
+          ${metric("Beams", "boss-beams")}
+          ${metric("Safe arcs", "boss-safe-arcs")}
           ${metric("Pending", "pending-spawns")}
         </dl>
       </section>
@@ -650,6 +688,11 @@ function isDebugWave(value: number): value is DebugWave {
 
 function isDebugTimeScale(value: number): value is DebugTimeScale {
   return DEBUG_TIME_SCALES.some((scale) => scale === value);
+}
+
+function parseBossPhase(value: string | undefined): BossPhase {
+  const phase = Number(value);
+  return phase === 2 || phase === 3 ? phase : 1;
 }
 
 function formatNumber(value: number, fractionDigits = 0): string {

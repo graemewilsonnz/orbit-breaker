@@ -1,7 +1,8 @@
 import { CONFIG } from "../config";
 import { circlesOverlap, distance, polarDistance } from "../core/geometry";
 import type { EnemyState } from "../state";
-import { damageEnemy, enemyPosition, handleBossShot } from "./enemies";
+import { handleBossShot } from "./boss";
+import { damageEnemy, enemyPosition } from "./enemies";
 import type { SimulationHost } from "./host";
 import { playerPosition, takePlayerHit } from "./player";
 import { applyPowerUp, powerUpPosition, type PowerUpHost } from "./powerups";
