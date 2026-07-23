@@ -53,7 +53,7 @@ import {
   type WaveStats,
 } from "./waveOutcomes";
 
-export const DEFAULT_RUN_SEED = "orbit-breaker-m5";
+export const DEFAULT_RUN_SEED = "orbit-breaker-m6";
 const MAX_PRESENTATION_EFFECTS = 96;
 
 export interface GameOptions {

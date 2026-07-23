@@ -33,6 +33,26 @@ describe("M5 audio mixer and native scheduling", () => {
     expect(FakeAudioContext.oscillatorStarts.length).toBeGreaterThan(0);
     expect(FakeAudioContext.oscillatorStarts[0]).toBeGreaterThan(10);
   });
+
+  it("reports audio availability and peak scheduled voice pressure", () => {
+    const audio = createAudio();
+    expect(audio.diagnostics()).toMatchObject({
+      contextState: "not-started",
+      liveVoices: 0,
+      peakVoices: 0,
+    });
+
+    audio.init();
+    audio.play("powerup");
+
+    expect(audio.diagnostics()).toMatchObject({
+      contextState: "running",
+      liveVoices: 2,
+      peakVoices: 2,
+    });
+    FakeAudioContext.oscillators[0]?.finish();
+    expect(audio.diagnostics().liveVoices).toBe(1);
+  });
 });
 
 function createAudio(): AudioEngine {
@@ -75,6 +95,7 @@ class FakeOscillator {
   readonly frequency = new FakeAudioParam();
 
   type: OscillatorType = "sine";
+  onended: ((this: AudioScheduledSourceNode, event: Event) => unknown) | null = null;
 
   connect(): void {
     return undefined;
@@ -87,11 +108,16 @@ class FakeOscillator {
   stop(): void {
     return undefined;
   }
+
+  finish(): void {
+    this.onended?.call(this as unknown as AudioScheduledSourceNode, new Event("ended"));
+  }
 }
 
 class FakeAudioContext {
   static readonly gains: FakeGain[] = [];
   static readonly oscillatorStarts: number[] = [];
+  static readonly oscillators: FakeOscillator[] = [];
 
   readonly currentTime = 10;
   readonly destination = {};
@@ -101,6 +127,7 @@ class FakeAudioContext {
   static reset(): void {
     FakeAudioContext.gains.splice(0);
     FakeAudioContext.oscillatorStarts.splice(0);
+    FakeAudioContext.oscillators.splice(0);
   }
 
   createGain(): GainNode {
@@ -110,7 +137,9 @@ class FakeAudioContext {
   }
 
   createOscillator(): OscillatorNode {
-    return new FakeOscillator() as unknown as OscillatorNode;
+    const oscillator = new FakeOscillator();
+    FakeAudioContext.oscillators.push(oscillator);
+    return oscillator as unknown as OscillatorNode;
   }
 
   resume(): Promise<void> {

@@ -1,6 +1,7 @@
 # Orbit Breaker Development Plan
 
-Status: In execution — M5 implemented<br> Plan version: 0.6<br> Date: 2026-07-23
+Status: In execution — M6 implemented, human acceptance pending<br> Plan version: 1.0<br> Date:
+2026-07-23
 
 ## 1. Outcome
 
@@ -431,6 +432,340 @@ Gate:
 - Frame time remains within the 60 fps budget during the busiest authored encounter.
 - A short external playtest confirms comprehension, fairness, and replay intent.
 
+Implementation result:
+
+- A ten-seed fixed-step release matrix traverses all eight waves, all three boss phases, and
+  baseline, Twin Shot, shield, bomb, and full-power schedules. It rejects invalid transitions, stuck
+  runs, lost lives under the invulnerable reliability fixture, missing timings, and unbounded
+  presentation effects; a repeated seed must end in an identical authoritative state.
+- Rapid-restart, pause-freeze, and simulated long-session scenarios protect recovery paths and
+  bounded state across fifty restarts and up to thirty simulated minutes.
+- Development builds expose a bounded 600-frame profile for update, render, total main-thread frame
+  work, frames over the 16.67 ms CPU budget, peak entities, optional JavaScript heap, and Web Audio
+  voice pressure. The M6 browser route samples the authored Phase 3 peak-pressure state.
+- Playwright now defines Chromium and Firefox projects. The release route also covers focus loss,
+  resize while paused, audio diagnostics, and ten rapid browser restarts.
+- README, deployment, control, attribution, licence, and release-checklist documentation now define
+  the reproducible static candidate and the remaining human acceptance boundary. The unapproved
+  optional standalone package remains excluded.
+- Engineering implementation is complete. Manual Edge, long wall-clock, ten human-run, unpowered
+  boss, first-time comprehension, and external replay-intent checks remain required before the M6
+  build is accepted and tagged.
+
+### M7 - Formation play and radial-shooter identity
+
+Goal: deepen the game’s distinctive circular arcade identity through choreographed formations,
+progressive threat deployment, authored contrast, stronger musical identity, and clearer score
+mastery without reopening or delaying the M6 release candidate.
+
+M7 is a post-M6 milestone. Before M7 work begins, the accepted M6 build must be tagged and remain
+available as the stable release baseline. M7 changes produce a separate release candidate and must
+pass their own regression, balance, performance, and playtest gates.
+
+Work:
+
+- Add a typed formation-path system supporting shared squad movement through:
+
+  - entrance;
+  - formation assembly;
+  - interception window;
+  - deployed pressure;
+  - breakaway attack;
+  - retreat or escape.
+
+- Implement at least four recognisable entrance paths, selected from:
+
+  - spiral;
+  - figure-eight;
+  - mirrored loop;
+  - corkscrew;
+  - converging arcs;
+  - orbit-and-break.
+
+- Preserve Wave 1 as the simplest teaching wave and selectively rebuild later waves around
+  formation-level choreography rather than independent enemy spawning.
+- Give surviving formation members a meaningful deployed state near the core instead of immediately
+  escaping or continuing unchanged.
+- Introduce ordinary hostile fire before the dedicated Shooter appears:
+
+  - Drifters may fire one slow, clearly warned aimed shot after deployment;
+  - Spiral Divers may fire one tangential or curved shot during a committed attack;
+  - Mines and Hunters retain non-projectile roles;
+  - Shooters remain the principal repeated ranged threat.
+
+- Ensure the player encounters and understands a basic hostile projectile by Wave 3.
+- Retain Centre Kill as the individual early-interception bonus.
+- Add a distinct Formation Sweep award for destroying an entire authored squad before it completes
+  deployment.
+- Add a non-lethal bonus stage between Waves 4 and 5:
+
+  - the player remains able to move and fire;
+  - enemies cannot damage the player;
+  - formations make rapid entrance and departure passes;
+  - complete formation clears award escalating bonuses;
+  - destroying every target awards a clearly explained Perfect bonus.
+
+- Add one skill-earned upgrade encounter:
+
+  - an identifiable linked carrier or relay formation enters near the core;
+  - the reward target is visually distinct;
+  - the formation withdraws after a limited interception window;
+  - successful targeting guarantees an authored reward rather than relying on random drop chance.
+
+- Retain the existing random-drop and pity systems as secondary recovery mechanisms.
+- Add lightweight three-act journey framing:
+
+  1. Outer Intercept — Waves 1–3;
+  2. Defence Lattice — Waves 4–6;
+  3. Core Approach — Waves 7–8 and the Mothership.
+
+- Use short transitions, changing tunnel behaviour, sector titles, and a declining distance-to-core
+  indicator to communicate progress without introducing a campaign map or story system.
+- Add one restrained indestructible-debris set piece:
+
+  - debris follows clearly telegraphed outward paths;
+  - normal shots visibly fail to destroy it;
+  - the player must reposition or dash;
+  - debris remains sparse enough not to obscure enemy grammar.
+
+- Extend the adaptive audio system with one original recognisable melodic motif that can appear in:
+
+  - the title;
+  - normal waves;
+  - late-wave pressure;
+  - the pre-boss transition;
+  - victory.
+
+- Foreshadow the Mothership during Wave 8 through environmental, visual, and musical changes before
+  the boss introduction begins.
+- Replace the single-score persistence model with a local top-five table storing:
+
+  - score;
+  - completion state or wave reached;
+  - Perfect-wave count;
+  - accuracy;
+  - run duration;
+  - date;
+  - optional initials.
+
+- Add an exact end-of-run score breakdown covering:
+
+  - enemy destruction;
+  - Centre Kill bonuses;
+  - Formation Sweep bonuses;
+  - multiplier contribution;
+  - Perfect-wave bonuses;
+  - boss and phase awards;
+  - unused-resource bonuses.
+
+- Add concise personal-best and missed-opportunity feedback such as:
+
+  - new best wave time;
+  - improved accuracy;
+  - formations escaped;
+  - Perfect lost to damage, escape, or bomb use;
+  - Centre Kill and Formation Sweep totals.
+
+- Extend deterministic content validation, scenario tests, browser routes, debug metrics, and
+  playtest records to cover every new formation and scoring outcome.
+
+Gate:
+
+- The accepted M6 build remains reproducible from its tag and is not modified by M7 work.
+- At least four formation paths are visually recognisable before individual enemy behaviours begin.
+- Formation behaviour is deterministic for a supplied seed.
+- Surviving formations create a clear increase in near-core pressure and target-priority decisions.
+- A new player understands ordinary enemy fire by Wave 3 without confusing hostile shots with
+  pickups, warnings, or player projectiles.
+- Every damaging projectile retains a tested warning, readable trajectory, and viable safe response.
+- Centre Kill and Formation Sweep represent different, non-overlapping score achievements.
+- The bonus stage cannot damage the player, cannot enter an invalid completion state, and awards
+  Perfect only when every authored target is destroyed.
+- The earned-upgrade encounter rewards deliberate targeting and never depends on random drop luck.
+- Journey transitions make run progression apparent without requiring explanatory text or increasing
+  total transition time enough to interrupt arcade momentum.
+- The debris set piece requires circumferential movement without creating unavoidable collisions or
+  excessive visual noise.
+- The musical motif remains recognisable across title, wave, boss, and victory variations while
+  preserving threat-audio clarity.
+- The final score breakdown reconciles exactly to the recorded total score.
+- Existing M0–M6 deterministic, browser, performance, pause, restart, audio, and state-flow tests
+  continue to pass.
+- Peak M7 encounters remain within the established 60 fps frame-time budget.
+- External playtesting shows that players recognise formation interception as a strategic
+  opportunity and that a majority voluntarily begin another run.
+- M7 produces a separate stable release candidate with no known P0 or P1 defects.
+
+### M8 - Controls and accessibility expansion
+
+Goal: support additional desktop input methods and accessibility needs without changing the movement
+limits, timing, or score authority of the keyboard game.
+
+Work:
+
+- Add gamepad support with digital and analogue rim movement.
+- Add keyboard and gamepad rebinding.
+- Add optional mouse target-angle control in which the cursor defines a desired angle but the ship
+  still rotates toward it at the configured maximum speed.
+- Prohibit instantaneous pointer teleportation around the ring.
+- Add reduced-flash and reduced-effect-intensity options.
+- Add accessibility colour presets and ensure warnings never depend solely on colour.
+- Test control prompts, settings persistence, hot-plugging, focus changes, and disconnected devices.
+- Add browser and scenario tests proving functional equivalence across supported input methods.
+
+Gate:
+
+- Every supported input method obeys the same maximum movement speed, dash rules, cooldowns, and
+  collision timing.
+- Mouse input cannot bypass circumferential travel or replace the dash mechanic.
+- Controls can be rebound without creating unreachable actions or duplicate mandatory bindings.
+- Critical threats remain identifiable under every supported visual-accessibility preset.
+- Input changes do not alter deterministic simulation outcomes when equivalent input sequences are
+  supplied.
+
+### M9 - Mastery, practice, and challenge systems
+
+Goal: give experienced players additional ways to practise, compare, and express mastery without
+requiring accounts, a backend, or hidden difficulty adjustment.
+
+Work:
+
+- Add unscored practice access to completed waves and boss phases.
+- Add shareable challenge seeds and an optional date-derived local daily challenge.
+- Add deterministic input recording for local replay or ghost comparison.
+- Add an attract-mode demonstration using a known seed and recorded inputs.
+- Define a small vocabulary of named mastery events, such as:
+
+  - Formation Sweep;
+  - Core Intercept;
+  - Shield Break;
+  - Perfect Dash;
+  - Close Vector.
+
+- Add a compact run-rank or medal summary based on several visible dimensions, such as completion,
+  score, accuracy, damage, Perfect waves, and run time.
+- Experiment with a restricted near-miss system for discrete attacks such as Hunter lunges, boss
+  beams, and debris.
+- Prevent repeated scoring from the same attack and reject any near-miss rule that encourages safe
+  farming or deliberately irrational movement.
+- Test one visible comeback mechanism, such as a score-threshold extra life or explicitly announced
+  last-ship reward.
+- Keep all comeback rules visible, deterministic, and identical for comparable seeded runs.
+
+Gate:
+
+- Practice results cannot modify authoritative high scores or challenge records.
+- Replays remain synchronized for a supplied build version, seed, and input record.
+- Named mastery events correspond to concrete player actions and cannot trigger repeatedly from one
+  event.
+- Near-miss rewards cannot be farmed and do not make deliberate exposure the dominant scoring
+  strategy.
+- Any comeback mechanic is visible to the player and does not use hidden low-life assistance.
+- Challenge and ghost features operate entirely locally unless a later connected-services milestone
+  is approved.
+
+### M10 - Experimental geometry and arsenal
+
+Goal: test mechanics that materially change circular positioning or projectile geometry without
+allowing feature quantity to weaken the established core game.
+
+Work:
+
+- Prototype one experimental mechanic at a time behind a development flag.
+- Candidate weapon or power mechanics include:
+
+  - ricochet or returning fire;
+  - temporary phase movement;
+  - controlled pickup recall;
+  - a deliberately angled or converging firing pattern.
+
+- Candidate ring mechanics include:
+
+  - moving barriers;
+  - temporary safe or unsafe sectors;
+  - orbiting hazards;
+  - explicitly telegraphed local pressure that discourages stationary play.
+
+- Evaluate any orbit-decay concept as an authored threat rather than a permanent invisible
+  punishment meter.
+- Consider additional ships only when each ship creates a genuinely different movement, resource, or
+  scoring decision.
+- Add no unlock economy during this milestone; experimental content must be directly selectable for
+  testing.
+
+Gate:
+
+- Each accepted mechanic changes a meaningful positioning or resource decision rather than only
+  increasing damage output.
+- No mechanic invalidates the basic orbit, fire, dash, warning, and safe-response grammar.
+- No accepted mechanic makes an existing enemy, power-up, or boss phase strategically irrelevant.
+- Experimental systems are removed or disabled if they reduce readability, produce dominant
+  strategies, or require extensive exceptions.
+- Only individually validated mechanics proceed to production content.
+
+### M11 - Campaign and content expansion
+
+Goal: turn the proven short-run game into a broader progression structure only after the core game
+and experimental mechanics have demonstrated sustained replay value.
+
+Work:
+
+- Design additional sectors with distinct visual, musical, formation, and hazard identities.
+- Add new waves using the established formation and pressure-budget systems.
+- Add additional bosses only after the existing Mothership remains readable and enjoyable under
+  repeated play.
+- Evaluate a campaign route, sector selection, or branching challenge structure.
+- Add multiple ships or weapons only from mechanics accepted through M10.
+- Design a restrained unlock structure based on meaningful content access rather than currency
+  accumulation or incremental stat inflation.
+- Preserve a complete score-attack mode with fixed rules and no progression advantages.
+
+Gate:
+
+- Each sector introduces a coherent tactical identity rather than only higher speed or health.
+- Additional bosses test different aspects of circular positioning and do not duplicate the
+  Mothership.
+- Campaign progression does not make the original score-attack run obsolete.
+- Unlocks do not confer hidden or unavoidable competitive advantages.
+- New content remains data-authored, validated, deterministic, and independently testable.
+
+### M12 - Platform and connected product decisions
+
+Goal: evaluate broader distribution and connected features as separate product investments rather
+than extensions of the core gameplay milestone sequence.
+
+Potential workstreams:
+
+- Installable PWA packaging and offline update handling.
+- Mobile and touch-control feasibility.
+- Online leaderboards and account requirements.
+- Shared challenge results.
+- Cloud save.
+- Multiplayer feasibility.
+- Moderation, privacy, security, hosting, operating-cost, and anti-cheat requirements.
+
+Gate:
+
+- Each workstream receives a separate feasibility and product-value decision before implementation.
+- Mobile controls must preserve readable circular positioning rather than approximate the desktop
+  design poorly.
+- Online competition must define score authority, version compatibility, seed handling, replay
+  verification, and anti-cheat expectations.
+- Accounts are not added solely to support a feature that can work locally.
+- Multiplayer is not approved until latency, synchronization, game-mode design, and ongoing
+  operational requirements are understood.
+
+### Scope rules for future milestones
+
+- Hidden dynamic difficulty and undisclosed low-life assistance remain excluded.
+- M8–M12 are roadmap milestones, not commitments to ship every listed feature.
+- Each milestone begins only after the preceding accepted build has been tagged and remains
+  reproducible.
+- Future work must preserve an authoritative, complete, offline score-attack mode.
+- A feature that weakens circumference control, threat readability, deterministic comparison, or
+  immediate restart value should be revised or rejected rather than retained because development
+  effort has already been spent.
+
 ## 7. Testing Strategy
 
 ### Unit tests
@@ -495,7 +830,8 @@ playtest notes until there is a real distribution need.
 ### P1 - Add only after the release gates pass
 
 - Gamepad support.
-- A dedicated bonus wave.
+- M7 formation, bonus-stage, journey, musical-identity, and local replay work after the M6 release
+  candidate passes.
 - Replay or ghost data using seeded input capture.
 - Additional accessibility colour presets.
 - Installable PWA packaging.
@@ -529,10 +865,11 @@ Approval of this plan also approves these defaults:
 4. Treat a double-click standalone build as optional unless explicitly required.
 5. Preserve the current prototype through a parity-first migration.
 6. Target keyboard desktop play and defer mobile, backend, and campaign work.
-7. Use seven review checkpoints, including foundation, each ending in a playable and tested build.
+7. Use 12 review checkpoints, including foundation, each ending in a playable and tested build.
 
-M0 through M4 are now implemented. The eight-wave run leads into an authored three-phase mothership
+M0 through M6 are now implemented. The eight-wave run leads into an authored three-phase mothership
 encounter with readable weak windows, warned beam safe arcs, bounded add pressure, idempotent
 scoring, dedicated audio feedback, and deterministic state/timing instrumentation. A human balance
 and first-time comprehension pass is still required to accept the encounter-duration and readability
-gates. Presentation, audio-mixer, and complete-UX work continues in M5.
+gates. M6 engineering QA is complete; the human release checks in `docs/M6_RELEASE_CHECKLIST.md`
+remain open before acceptance and tagging.

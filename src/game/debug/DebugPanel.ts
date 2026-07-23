@@ -70,6 +70,13 @@ export interface DebugStats {
   readonly renderMs: number;
   readonly steps: number;
   readonly entities: number;
+  readonly sampleCount: number;
+  readonly frameWorkP95Ms: number;
+  readonly overBudgetFrames: number;
+  readonly peakEntities: number;
+  readonly peakHeapBytes: number | null;
+  readonly peakAudioVoices: number;
+  readonly audioContextState: string;
 }
 
 export interface DebugPanelOptions {
@@ -294,6 +301,11 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
     renderMs: requireElement<HTMLElement>(root, '[data-value="render-ms"]'),
     steps: requireElement<HTMLElement>(root, '[data-value="steps"]'),
     entities: requireElement<HTMLElement>(root, '[data-value="entities"]'),
+    frameP95: requireElement<HTMLElement>(root, '[data-value="frame-p95"]'),
+    overBudget: requireElement<HTMLElement>(root, '[data-value="over-budget"]'),
+    peakEntities: requireElement<HTMLElement>(root, '[data-value="peak-entities"]'),
+    peakHeap: requireElement<HTMLElement>(root, '[data-value="peak-heap"]'),
+    audioPressure: requireElement<HTMLElement>(root, '[data-value="audio-pressure"]'),
     state: requireElement<HTMLElement>(root, '[data-value="state"]'),
     wave: requireElement<HTMLElement>(root, '[data-value="wave"]'),
     score: requireElement<HTMLElement>(root, '[data-value="score"]'),
@@ -442,6 +454,14 @@ export function mountDebugPanel(options: DebugPanelOptions): DebugPanelHandle {
     values.renderMs.textContent = formatMilliseconds(stats.renderMs);
     values.steps.textContent = formatNumber(stats.steps);
     values.entities.textContent = formatNumber(stats.entities);
+    values.frameP95.textContent = formatMilliseconds(stats.frameWorkP95Ms);
+    values.overBudget.textContent = `${stats.overBudgetFrames}/${stats.sampleCount}`;
+    values.peakEntities.textContent = formatNumber(stats.peakEntities);
+    values.peakHeap.textContent =
+      stats.peakHeapBytes === null
+        ? "\u2014"
+        : `${(stats.peakHeapBytes / (1024 * 1024)).toFixed(1)} MB`;
+    values.audioPressure.textContent = `${stats.peakAudioVoices} · ${stats.audioContextState}`;
 
     const snapshot = options.getSnapshot();
     values.state.textContent = snapshot.state;
@@ -599,6 +619,11 @@ function panelMarkup(panelId: number): string {
           ${metric("Render", "render-ms")}
           ${metric("Steps", "steps")}
           ${metric("Entities", "entities")}
+          ${metric("Frame p95", "frame-p95")}
+          ${metric("Over budget", "over-budget")}
+          ${metric("Peak entities", "peak-entities")}
+          ${metric("Peak heap", "peak-heap")}
+          ${metric("Audio voices", "audio-pressure")}
         </dl>
       </section>
 

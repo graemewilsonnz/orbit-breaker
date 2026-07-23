@@ -317,3 +317,55 @@ The Presentation, audio, and complete UX checkpoint is implemented. The game now
 visual/audio identity, persistent and accessible runtime settings, safe interruption handling, local
 score continuity, responsive high-DPI composition, bounded presentation effects, fixed projectile
 lifecycle/collision behavior, and a reliable browser gate.
+
+## M6 balance, QA, and release-candidate verification
+
+Date: 2026-07-23<br> Build: M6 balance, QA, and release candidate
+
+### Scope
+
+- Execute ten named seeded reliability runs across Waves 1–8, all three boss phases, and baseline,
+  Twin Shot, shield, bomb, and full-power schedules.
+- Repeat one seed and require exact authoritative end-state parity.
+- Exercise fifty rapid restarts, pause freezing, and a simulated thirty-minute session boundary.
+- Profile update, render, total main-thread frame work, entity count, optional JavaScript heap, and
+  Web Audio voice pressure at the busiest authored boss state.
+- Run the complete state, input, visual, persistence, no-audio, and M6 stress routes in Chromium and
+  Firefox.
+- Define a reproducible static deployment and record the remaining manual acceptance checks.
+
+### Automated evidence
+
+- The ten-seed matrix reaches Victory for every fixture, records all eight wave timings, visits boss
+  phases 1–3, retains a live player, and stays within the 96-effect presentation cap.
+- Repeating `m6-aperture-461` produces byte-identical authoritative state.
+- Fifty start/pause/resume/game-over cycles retain clean restart state, and the long-session fixture
+  reaches the boss without a stuck wave or unbounded event/effect state.
+- Runtime profiling retains only the latest 600 samples and reports p95 update, render, and frame
+  work alongside budget overruns, peak entities, heap, and audio voices.
+- Strict TypeScript, lint, 185 tests across 23 files, and the Vite production build pass.
+- Seven Chromium routes pass, including an enforced sub-16.67 ms CPU frame-work p95 in the authored
+  Phase 3 stress window. Seven Firefox routes pass as functional coverage; headed Firefox
+  performance remains manual because Playwright's Windows headless build software-renders Canvas.
+- The production title, Wave 1, and settings states were inspected in the in-app browser with no
+  warning or error logs.
+
+### Manual verification boundary
+
+The M6 implementation is not the same as release acceptance. The following remain open:
+
+- ten normal human seeded runs;
+- three unpowered human boss attempts and first-time weak/safe-arc comprehension;
+- named Microsoft Edge and headed, hardware-accelerated Firefox checks;
+- an audible hidden-tab, OS focus, and long wall-clock session;
+- a short external playtest confirming comprehension, fairness, and replay intent;
+- confirmation that no P0 or P1 defect remains.
+
+The exact procedure is in `M6_RELEASE_CHECKLIST.md`. M7 must not begin and the M6 baseline must not
+be tagged until these checks pass.
+
+### M6 result
+
+M6 engineering implementation is complete. Reliability, determinism, recovery, cross-browser
+automation, performance observability, release documentation, and static deployment packaging are in
+place. Human balance, browser-device, and external-playtest acceptance remains explicitly pending.

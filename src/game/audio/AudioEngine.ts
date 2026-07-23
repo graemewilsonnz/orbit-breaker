@@ -44,6 +44,12 @@ export interface AdaptiveMusicState {
   readonly bossPhase: number | null;
 }
 
+export interface AudioDiagnostics {
+  readonly contextState: AudioContextState | "unavailable" | "not-started";
+  readonly liveVoices: number;
+  readonly peakVoices: number;
+}
+
 interface AudioWindow extends Window {
   AudioContext?: typeof AudioContext;
   webkitAudioContext?: typeof AudioContext;
@@ -68,6 +74,8 @@ export class AudioEngine {
   private nextMusicBeat = 0;
   private musicBeat = 0;
   private musicWasActive = false;
+  private liveVoices = 0;
+  private peakVoices = 0;
 
   constructor(browserWindow: Window = window) {
     const compatibleWindow = browserWindow as AudioWindow;
@@ -93,6 +101,17 @@ export class AudioEngine {
     if (this.context?.state === "running") {
       void this.context.suspend();
     }
+  }
+
+  diagnostics(): AudioDiagnostics {
+    return {
+      contextState:
+        this.AudioContextConstructor === undefined
+          ? "unavailable"
+          : (this.context?.state ?? "not-started"),
+      liveVoices: this.liveVoices,
+      peakVoices: this.peakVoices,
+    };
   }
 
   setMix(mix: AudioMix): void {
@@ -266,6 +285,7 @@ export class AudioEngine {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     oscillator.connect(gain);
     gain.connect(output);
+    this.trackVoice(oscillator);
     oscillator.start(now);
     oscillator.stop(now + duration + 0.02);
   }
@@ -295,6 +315,7 @@ export class AudioEngine {
     source.connect(filter);
     filter.connect(gain);
     gain.connect(this.effectsGain);
+    this.trackVoice(source);
     source.start(now);
   }
 
@@ -355,6 +376,16 @@ export class AudioEngine {
         "music",
       );
     }
+  }
+
+  private trackVoice(source: AudioScheduledSourceNode): void {
+    this.liveVoices += 1;
+    this.peakVoices = Math.max(this.peakVoices, this.liveVoices);
+    const previousHandler = source.onended;
+    source.onended = (event): void => {
+      this.liveVoices = Math.max(0, this.liveVoices - 1);
+      previousHandler?.call(source, event);
+    };
   }
 }
 

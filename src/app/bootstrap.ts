@@ -9,6 +9,7 @@ import {
   type PlayerPreferences,
   type PreferenceStorage,
 } from "./preferences";
+import { RuntimeProfiler } from "./runtimeProfile";
 import { Game, DEFAULT_RUN_SEED } from "../game/Game";
 import { AudioEngine } from "../game/audio/AudioEngine";
 import { validateGameContent } from "../game/config";
@@ -34,6 +35,7 @@ interface Runtime {
   readonly input: InputManager;
   readonly clock: FixedStepClock;
   readonly audio: AudioEngine;
+  readonly profiler: RuntimeProfiler | null;
   readonly stats: RuntimeStats;
   readonly eventHistory: EventUnion<GameplayEventMap>[];
   readonly debugCommands: DebugCommand[];
@@ -82,6 +84,7 @@ async function bootstrap(): Promise<void> {
     input,
     clock: new FixedStepClock(),
     audio,
+    profiler: import.meta.env.DEV ? new RuntimeProfiler() : null,
     stats: { fps: 0, updateMs: 0, renderMs: 0, steps: 0, entities: 0 },
     eventHistory: [],
     debugCommands: [],
@@ -104,6 +107,7 @@ async function bootstrap(): Promise<void> {
 
   let previousFrameTime = performance.now();
   const frame = (now: number): void => {
+    const frameWorkStart = performance.now();
     const wallFrameSeconds = Math.max(0.000_001, (now - previousFrameTime) / 1000);
     previousFrameTime = now;
     runtime.stats.fps = smooth(runtime.stats.fps, 1 / wallFrameSeconds, 0.1);
@@ -120,7 +124,8 @@ async function bootstrap(): Promise<void> {
       consumeEvents(runtime);
     });
     runtime.stats.steps = clockFrame.simulatedSteps;
-    runtime.stats.updateMs = smooth(runtime.stats.updateMs, performance.now() - updateStart, 0.15);
+    const updateMs = performance.now() - updateStart;
+    runtime.stats.updateMs = smooth(runtime.stats.updateMs, updateMs, 0.15);
 
     const view = runtime.game.view();
     updateTerminalPresentation(runtime, view);
@@ -128,7 +133,8 @@ async function bootstrap(): Promise<void> {
 
     const renderStart = performance.now();
     runtime.renderer.render(view);
-    runtime.stats.renderMs = smooth(runtime.stats.renderMs, performance.now() - renderStart, 0.15);
+    const renderMs = performance.now() - renderStart;
+    runtime.stats.renderMs = smooth(runtime.stats.renderMs, renderMs, 0.15);
     const snapshot = runtime.game.snapshot();
     runtime.stats.entities =
       snapshot.enemies +
@@ -136,6 +142,14 @@ async function bootstrap(): Promise<void> {
       snapshot.enemyBullets +
       snapshot.powerups +
       (snapshot.bossHealth === null ? 0 : 1);
+    runtime.profiler?.record({
+      updateMs,
+      renderMs,
+      frameWorkMs: performance.now() - frameWorkStart,
+      entities: runtime.stats.entities,
+      heapBytes: readHeapBytes(performance),
+      audioVoices: runtime.audio.diagnostics().liveVoices,
+    });
 
     status.hidden = true;
     updateDebugPanel?.();
@@ -408,6 +422,10 @@ async function setupDevelopmentTools(
   runtime: Runtime,
   initiallyOpen: boolean,
 ): Promise<() => void> {
+  const profiler = runtime.profiler;
+  if (profiler === null) {
+    throw new Error("Development profiling is unavailable in a production build");
+  }
   const dispatch = (command: DebugCommand): void => {
     runtime.debugCommands.push(command);
   };
@@ -416,6 +434,9 @@ async function setupDevelopmentTools(
     snapshot: () => runtime.game.snapshot(),
     deterministicState: () => runtime.game.deterministicState(),
     forceState: (state: "gameOver" | "victory") => runtime.game.forceState(state),
+    runtimeProfile: () => profiler.snapshot(),
+    resetRuntimeProfile: () => profiler.reset(),
+    audioDiagnostics: () => runtime.audio.diagnostics(),
   };
   Object.defineProperty(window, "__ORBIT_DEBUG__", {
     value: debugApi,
@@ -433,7 +454,11 @@ async function setupDevelopmentTools(
         type: event.type,
         summary: summarizeEvent(event),
       })),
-    getStats: () => runtime.stats,
+    getStats: () => ({
+      ...runtime.stats,
+      ...profiler.snapshot(),
+      audioContextState: runtime.audio.diagnostics().contextState,
+    }),
   });
 
   return () => panel.update();
@@ -513,6 +538,16 @@ function smooth(current: number, next: number, factor: number): number {
   return current === 0 ? next : current + (next - current) * factor;
 }
 
+function readHeapBytes(browserPerformance: Performance): number | null {
+  const memory = (
+    browserPerformance as Performance & {
+      readonly memory?: { readonly usedJSHeapSize?: number };
+    }
+  ).memory;
+  const used = memory?.usedJSHeapSize;
+  return typeof used === "number" && Number.isFinite(used) && used >= 0 ? used : null;
+}
+
 function showFatalError(error: unknown): void {
   const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
   const shell = document.querySelector(".game-shell") ?? document.body;
@@ -535,6 +570,9 @@ declare global {
       readonly snapshot: () => unknown;
       readonly deterministicState: () => string;
       readonly forceState: (state: "gameOver" | "victory") => void;
+      readonly runtimeProfile: () => unknown;
+      readonly resetRuntimeProfile: () => void;
+      readonly audioDiagnostics: () => unknown;
     };
   }
 }

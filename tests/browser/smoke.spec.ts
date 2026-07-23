@@ -34,6 +34,24 @@ interface BrowserSnapshot {
   };
 }
 
+interface BrowserRuntimeProfile {
+  readonly sampleCount: number;
+  readonly updateP95Ms: number;
+  readonly renderP95Ms: number;
+  readonly frameWorkP95Ms: number;
+  readonly frameWorkMaxMs: number;
+  readonly overBudgetFrames: number;
+  readonly peakEntities: number;
+  readonly peakHeapBytes: number | null;
+  readonly peakAudioVoices: number;
+}
+
+interface BrowserAudioDiagnostics {
+  readonly contextState: string;
+  readonly liveVoices: number;
+  readonly peakVoices: number;
+}
+
 test.describe("Orbit Breaker browser smoke", () => {
   test("loads a non-blank title canvas without browser errors", async ({ page }) => {
     const errors = collectBrowserErrors(page);
@@ -348,6 +366,85 @@ test.describe("Orbit Breaker browser smoke", () => {
     await expectState(page, "playing");
     expect(errors).toEqual([]);
   });
+
+  test("survives M6 peak pressure, interruption, resize, audio suspension, and rapid restart", async ({
+    page,
+    browserName,
+  }) => {
+    test.setTimeout(90_000);
+    const errors = collectBrowserErrors(page);
+    await page.goto("/?seed=m6-browser-release");
+    await waitForDebugRuntime(page);
+    await page.keyboard.press("Enter");
+    await expectState(page, "playing");
+    await page.evaluate(() => {
+      window.__ORBIT_DEBUG__?.dispatch({ type: "start-boss", phase: 3 });
+      window.__ORBIT_DEBUG__?.dispatch({ type: "set-invulnerable", enabled: true });
+      window.__ORBIT_DEBUG__?.dispatch({ type: "set-time-scale", scale: 4 });
+    });
+    await page.waitForFunction(() => {
+      const current = window.__ORBIT_DEBUG__?.snapshot() as BrowserSnapshot | undefined;
+      return current?.bossPhase === 3;
+    });
+
+    await page.evaluate(() => window.__ORBIT_DEBUG__?.resetRuntimeProfile());
+    await page.keyboard.down("ArrowRight");
+    await page.keyboard.down("Space");
+    await page.waitForTimeout(4_000);
+    await page.keyboard.up("Space");
+    await page.keyboard.up("ArrowRight");
+
+    const profile = await runtimeProfile(page);
+    // Parallel browser workers can throttle requestAnimationFrame heavily in CI.
+    // Sixty samples still gives the rolling p95 a meaningful stress window.
+    expect(profile.sampleCount).toBeGreaterThanOrEqual(60);
+    expect(profile.peakEntities).toBeGreaterThanOrEqual(5);
+    expect(Number.isFinite(profile.frameWorkP95Ms)).toBe(true);
+    if (browserName === "chromium") {
+      // Chromium headless uses the release machine's accelerated path. The
+      // bundled Firefox headless build software-renders Canvas on Windows, so
+      // it remains a functional gate rather than a representative fps probe.
+      expect(profile.updateP95Ms).toBeLessThan(10);
+      expect(profile.renderP95Ms).toBeLessThan(10);
+      expect(profile.frameWorkP95Ms).toBeLessThan(1000 / 60);
+    }
+    expect(profile.peakHeapBytes === null || profile.peakHeapBytes > 0).toBe(true);
+
+    await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+    await expectState(page, "paused");
+    const pausedState = await deterministicState(page);
+    for (const viewport of [
+      { width: 1280, height: 720 },
+      { width: 1024, height: 768 },
+      { width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect(page.locator("#gameCanvas")).toBeVisible();
+    }
+    expect(await deterministicState(page)).toBe(pausedState);
+
+    const audio = await audioDiagnostics(page);
+    expect(["running", "suspended", "unavailable"]).toContain(audio.contextState);
+    expect(audio.liveVoices).toBeGreaterThanOrEqual(0);
+    expect(audio.peakVoices).toBeGreaterThanOrEqual(audio.liveVoices);
+
+    await page.keyboard.press("KeyP");
+    await expectState(page, "playing");
+    for (let restart = 0; restart < 10; restart += 1) {
+      await page.evaluate(() => window.__ORBIT_DEBUG__?.forceState("gameOver"));
+      await expectState(page, "gameOver");
+      await page.keyboard.press("Enter");
+      await expectState(page, "playing");
+    }
+
+    expect(await snapshot(page)).toMatchObject({
+      state: "playing",
+      currentWave: 1,
+      score: 0,
+      lives: 3,
+    });
+    expect(errors).toEqual([]);
+  });
 });
 
 async function exerciseOpeningControls(page: Page): Promise<BrowserSnapshot> {
@@ -453,6 +550,14 @@ async function snapshot(page: Page): Promise<BrowserSnapshot> {
 
 async function deterministicState(page: Page): Promise<string> {
   return page.evaluate(() => window.__ORBIT_DEBUG__?.deterministicState() ?? "");
+}
+
+async function runtimeProfile(page: Page): Promise<BrowserRuntimeProfile> {
+  return page.evaluate(() => window.__ORBIT_DEBUG__?.runtimeProfile() as BrowserRuntimeProfile);
+}
+
+async function audioDiagnostics(page: Page): Promise<BrowserAudioDiagnostics> {
+  return page.evaluate(() => window.__ORBIT_DEBUG__?.audioDiagnostics() as BrowserAudioDiagnostics);
 }
 
 async function expectState(page: Page, expected: string): Promise<void> {
