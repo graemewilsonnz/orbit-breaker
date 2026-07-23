@@ -26,6 +26,7 @@ import {
   type EnemyResolution,
   type GameState,
   type GameStateId,
+  type PauseReason,
   type PausableGameStateId,
   type ProjectileState,
   type ReadonlyGameState,
@@ -52,7 +53,8 @@ import {
   type WaveStats,
 } from "./waveOutcomes";
 
-export const DEFAULT_RUN_SEED = "orbit-breaker-m4";
+export const DEFAULT_RUN_SEED = "orbit-breaker-m5";
+const MAX_PRESENTATION_EFFECTS = 96;
 
 export interface GameOptions {
   readonly seed?: RandomSeed;
@@ -62,6 +64,7 @@ export interface GameOptions {
 export interface GameSnapshot {
   readonly state: GameStateId;
   readonly pausedFrom: PausableGameStateId;
+  readonly pauseReason: PauseReason;
   readonly seed: RandomSeed;
   readonly currentWave: number;
   readonly waveReached: number;
@@ -160,14 +163,13 @@ export class Game implements CollisionHost {
 
     if (this.state.state === "paused") {
       if (input.wasPressed("pause")) {
-        this.transitionTo(this.state.pausedFrom);
+        this.resume();
       }
       return;
     }
 
     if (input.wasPressed("pause")) {
-      this.state.pausedFrom = this.state.state;
-      this.transitionTo("paused");
+      this.pause("manual");
       return;
     }
 
@@ -204,6 +206,32 @@ export class Game implements CollisionHost {
     this.startAtWave(1);
   }
 
+  pause(reason: PauseReason = "manual"): boolean {
+    if (
+      this.state.state !== "playing" &&
+      this.state.state !== "waveClear" &&
+      this.state.state !== "bossIntro"
+    ) {
+      return false;
+    }
+
+    this.state.pausedFrom = this.state.state;
+    this.state.pauseReason = reason;
+    this.transitionTo("paused");
+    return true;
+  }
+
+  resume(): boolean {
+    if (this.state.state !== "paused") {
+      return false;
+    }
+
+    const resumeState = this.state.pausedFrom;
+    this.state.pauseReason = "manual";
+    this.transitionTo(resumeState);
+    return true;
+  }
+
   startAtWave(waveNumber: number): void {
     this.gameplayRandom = new SeededRng(this.runSeed);
     resetPlayer(this.state.player);
@@ -223,6 +251,7 @@ export class Game implements CollisionHost {
     this.state.shake = 0;
     this.state.stateTimer = 0;
     this.state.pausedFrom = "playing";
+    this.state.pauseReason = "manual";
     this.state.runMetrics = createRunMetrics();
     startWave(this.state.wave, waveNumber, this.gameplayRandom);
     this.transitionTo("playing");
@@ -284,6 +313,9 @@ export class Game implements CollisionHost {
   }
 
   addEffect(effect: EffectRequest): void {
+    if (this.state.effects.length >= MAX_PRESENTATION_EFFECTS) {
+      this.state.effects.splice(0, this.state.effects.length - MAX_PRESENTATION_EFFECTS + 1);
+    }
     const stateEffect: EffectState = {
       ...effect,
       age: 0,
@@ -543,6 +575,7 @@ export class Game implements CollisionHost {
     return {
       state: this.state.state,
       pausedFrom: this.state.pausedFrom,
+      pauseReason: this.state.pauseReason,
       seed: this.runSeed,
       currentWave: this.state.currentWave,
       waveReached: this.state.waveReached,
@@ -642,7 +675,7 @@ export class Game implements CollisionHost {
 
     this.updatePowerUps(dt);
     updateShieldLinks(this);
-    handleCollisions(this);
+    handleCollisions(this, dt);
     this.updateEffects(dt);
     this.cleanup();
 
@@ -841,6 +874,7 @@ function createInitialState(presentationRandom: RandomSource): GameState {
   return {
     state: "title",
     pausedFrom: "playing",
+    pauseReason: "manual",
     stateTimer: 0,
     player: createPlayerState(),
     wave: {

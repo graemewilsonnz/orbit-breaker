@@ -54,7 +54,8 @@ export function updateProjectile(projectile: ProjectileState, dt: number): void 
   projectile.angle = normalizeAngle(projectile.angle + projectile.angularVelocity * dt);
   projectile.radius += projectile.radialSpeed * dt;
 
-  if (projectile.owner === "player" && projectile.radius < -24) {
+  if (projectile.owner === "player" && projectile.radius <= CONFIG.arena.innerKillRadius) {
+    projectile.radius = CONFIG.arena.innerKillRadius;
     projectile.active = false;
   }
   if (projectile.owner === "enemy" && projectile.radius > CONFIG.arena.outerKillRadius + 52) {

@@ -2,6 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 interface BrowserSnapshot {
   readonly state: string;
+  readonly pausedFrom: string;
+  readonly pauseReason: string;
   readonly currentWave: number;
   readonly score: number;
   readonly lives: number;
@@ -240,6 +242,97 @@ test.describe("Orbit Breaker browser smoke", () => {
     expect(errors).toEqual([]);
   });
 
+  test("persists M5 settings, auto-pauses safely, and fits target desktop viewports", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    const errors = collectBrowserErrors(page);
+    await page.goto("/?seed=m5-complete-ux");
+    await waitForDebugRuntime(page);
+
+    for (const viewport of [
+      { width: 1366, height: 768 },
+      { width: 1440, height: 900 },
+      { width: 1024, height: 768 },
+    ]) {
+      await page.setViewportSize(viewport);
+      const stage = page.locator("#gameStage");
+      const canvas = page.locator("#gameCanvas");
+      const stageBox = await stage.boundingBox();
+      const canvasBox = await canvas.boundingBox();
+      expect(stageBox).not.toBeNull();
+      expect(canvasBox).not.toBeNull();
+      expect(requiredBox(stageBox).x).toBeGreaterThanOrEqual(0);
+      expect(requiredBox(stageBox).y).toBeGreaterThanOrEqual(0);
+      expect(requiredBox(stageBox).x + requiredBox(stageBox).width).toBeLessThanOrEqual(
+        viewport.width,
+      );
+      expect(requiredBox(stageBox).y + requiredBox(stageBox).height).toBeLessThanOrEqual(
+        viewport.height,
+      );
+      expect(requiredBox(canvasBox).width / requiredBox(canvasBox).height).toBeCloseTo(4 / 3, 2);
+      expect((await canvas.screenshot()).byteLength).toBeGreaterThan(1_000);
+    }
+
+    await page.locator("#settingsButton").click();
+    const panel = page.locator("#settingsPanel");
+    await expect(panel).toBeVisible();
+    const panelFit = await page.locator(".settings-card").evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }));
+    expect(panelFit.scrollHeight).toBeLessThanOrEqual(panelFit.clientHeight + 1);
+
+    await page.locator("#masterVolume").fill("25");
+    await page.locator("#musicVolume").fill("35");
+    await page.locator("#effectsVolume").fill("45");
+    await page.locator("#muteToggle").check();
+    await page.locator("#reducedShakeToggle").check();
+    await expect(page.locator("#masterVolumeValue")).toHaveText("25%");
+    await expect(page.locator("#muteButton")).toHaveAttribute("aria-pressed", "true");
+    await page.locator("#doneSettingsButton").click();
+
+    const stored = await page.evaluate(() => {
+      const raw = localStorage.getItem("orbit-breaker.preferences.v1");
+      return raw === null ? null : (JSON.parse(raw) as Record<string, unknown>);
+    });
+    expect(stored).toMatchObject({
+      masterVolume: 0.25,
+      musicVolume: 0.35,
+      effectsVolume: 0.45,
+      muted: true,
+      reducedShake: true,
+    });
+
+    await page.reload();
+    await waitForDebugRuntime(page);
+    await page.locator("#settingsButton").click();
+    await expect(page.locator("#masterVolume")).toHaveValue("25");
+    await expect(page.locator("#musicVolume")).toHaveValue("35");
+    await expect(page.locator("#effectsVolume")).toHaveValue("45");
+    await expect(page.locator("#muteToggle")).toBeChecked();
+    await expect(page.locator("#reducedShakeToggle")).toBeChecked();
+    await page.locator("#doneSettingsButton").click();
+
+    await page.keyboard.press("Enter");
+    await expectState(page, "playing");
+    await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+    await expectState(page, "paused");
+    expect(await snapshot(page)).toMatchObject({ pauseReason: "focus", pausedFrom: "playing" });
+
+    await page.keyboard.press("KeyP");
+    await expectState(page, "playing");
+    await page.locator("#settingsButton").click();
+    await expectState(page, "paused");
+    expect(await snapshot(page)).toMatchObject({ pauseReason: "settings", pausedFrom: "playing" });
+    await page.locator("#closeSettingsButton").click();
+    await expectState(page, "paused");
+    await page.keyboard.press("KeyP");
+    await expectState(page, "playing");
+
+    expect(errors).toEqual([]);
+  });
+
   test("continues when Web Audio is unavailable", async ({ page }) => {
     const errors = collectBrowserErrors(page);
     await page.addInitScript(() => {
@@ -384,4 +477,11 @@ function collectBrowserErrors(page: Page): string[] {
     }
   });
   return errors;
+}
+
+function requiredBox<T>(value: T | null): T {
+  if (value === null) {
+    throw new Error("Expected a visible element bounding box");
+  }
+  return value;
 }

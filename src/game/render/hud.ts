@@ -3,6 +3,13 @@ import { getBossPhaseDefinition } from "../content/boss";
 import { accuracyPercent, damageSourceLabel, type ReadonlyRunMetrics } from "../runMetrics";
 import type { ReadonlyBossState, ReadonlyGameState } from "../state";
 
+export interface OverlayPresentation {
+  readonly highScore: number;
+  readonly muted: boolean;
+  readonly newHighScore: boolean;
+  readonly reducedShake: boolean;
+}
+
 export function renderHud(context: CanvasRenderingContext2D, state: ReadonlyGameState): void {
   if (state.state === "title" || state.state === "gameOver" || state.state === "victory") {
     return;
@@ -122,7 +129,16 @@ function bossStatus(boss: ReadonlyBossState): string {
   }
 }
 
-export function renderOverlay(context: CanvasRenderingContext2D, state: ReadonlyGameState): void {
+export function renderOverlay(
+  context: CanvasRenderingContext2D,
+  state: ReadonlyGameState,
+  presentation: OverlayPresentation = {
+    highScore: 0,
+    muted: false,
+    newHighScore: false,
+    reducedShake: false,
+  },
+): void {
   switch (state.state) {
     case "playing":
       return;
@@ -161,25 +177,36 @@ export function renderOverlay(context: CanvasRenderingContext2D, state: Readonly
     case "paused":
       drawOverlay(context, 0.48);
       headline(context, "PAUSED", 305, 50);
-      subline(context, "P OR ESCAPE TO RESUME", 366);
+      subline(context, pauseReasonLabel(state.pauseReason), 358, CONFIG.colors.text);
+      subline(context, "P OR ESCAPE TO RESUME", 390, CONFIG.colors.playerAccent);
       return;
     case "gameOver":
       drawOverlay(context, 0.58);
       headline(context, "GAME OVER", 218, 54);
       subline(
         context,
-        `SCORE ${formatScore(state.player.score)}   REACHED ${
+        `SCORE ${formatScore(state.player.score)}   BEST ${formatScore(presentation.highScore)}   REACHED ${
           state.boss ? "BOSS" : `WAVE ${state.waveReached}`
         }`,
         286,
       );
+      if (presentation.newHighScore) {
+        badge(context, "NEW HIGH SCORE", 314);
+      }
       renderRunSummary(context, state.runMetrics, 336);
       subline(context, "PRESS ENTER TO RESTART", 462, CONFIG.colors.playerAccent);
       return;
     case "victory":
       drawOverlay(context, 0.5);
       headline(context, "VICTORY", 212, 56);
-      subline(context, `FINAL SCORE ${formatScore(state.player.score)}`, 282);
+      subline(
+        context,
+        `FINAL SCORE ${formatScore(state.player.score)}   BEST ${formatScore(presentation.highScore)}`,
+        282,
+      );
+      if (presentation.newHighScore) {
+        badge(context, "NEW HIGH SCORE", 310);
+      }
       renderRunSummary(context, state.runMetrics, 332);
       if (state.boss !== null) {
         const durations = state.boss.phaseDurations;
@@ -195,11 +222,11 @@ export function renderOverlay(context: CanvasRenderingContext2D, state: Readonly
       subline(context, "PRESS ENTER TO PLAY AGAIN", 470, CONFIG.colors.playerAccent);
       return;
     case "title":
-      drawTitle(context);
+      drawTitle(context, presentation);
   }
 }
 
-function drawTitle(context: CanvasRenderingContext2D): void {
+function drawTitle(context: CanvasRenderingContext2D, presentation: OverlayPresentation): void {
   drawOverlay(context, 0.1);
 
   context.save();
@@ -221,7 +248,7 @@ function drawTitle(context: CanvasRenderingContext2D): void {
   );
 
   context.fillStyle = CONFIG.colors.mutedText;
-  context.font = "500 17px Segoe UI, Arial, sans-serif";
+  context.font = "500 17px Bahnschrift, Segoe UI, Arial, sans-serif";
   context.fillText(
     "Left/A and Right/D rotate   Space/Z fire   Shift/X dash",
     CONFIG.canvas.width / 2,
@@ -229,9 +256,25 @@ function drawTitle(context: CanvasRenderingContext2D): void {
   );
   context.fillText("B/C bomb   P/Escape pause", CONFIG.canvas.width / 2, 354);
 
+  context.fillStyle = CONFIG.colors.mutedText;
+  context.font = "600 14px Bahnschrift, Segoe UI, Arial, sans-serif";
+  context.fillText(
+    `M ${presentation.muted ? "UNMUTE" : "MUTE"}   F FULLSCREEN   S SETTINGS`,
+    CONFIG.canvas.width / 2,
+    384,
+  );
+
   context.fillStyle = CONFIG.colors.playerAccent;
   context.font = "700 24px Segoe UI, Arial, sans-serif";
-  context.fillText("PRESS ENTER TO START", CONFIG.canvas.width / 2, 414);
+  context.fillText("PRESS ENTER TO START", CONFIG.canvas.width / 2, 430);
+
+  context.fillStyle = CONFIG.colors.text;
+  context.font = "700 16px Bahnschrift, Segoe UI, Arial, sans-serif";
+  context.fillText(
+    `LOCAL HIGH SCORE  ${formatScore(presentation.highScore)}`,
+    CONFIG.canvas.width / 2,
+    474,
+  );
   context.restore();
 }
 
@@ -267,6 +310,29 @@ function subline(
   context.font = "600 18px Segoe UI, Arial, sans-serif";
   context.fillText(text, CONFIG.canvas.width / 2, y);
   context.restore();
+}
+
+function badge(context: CanvasRenderingContext2D, text: string, y: number): void {
+  context.save();
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillStyle = CONFIG.colors.playerAccent;
+  context.shadowColor = CONFIG.colors.playerAccent;
+  context.shadowBlur = 10;
+  context.font = "800 13px Bahnschrift, Segoe UI, Arial, sans-serif";
+  context.fillText(text, CONFIG.canvas.width / 2, y);
+  context.restore();
+}
+
+function pauseReasonLabel(reason: ReadonlyGameState["pauseReason"]): string {
+  switch (reason) {
+    case "focus":
+      return "AUTO-PAUSED · WINDOW FOCUS LOST";
+    case "settings":
+      return "SETTINGS OPENED · GAMEPLAY HELD";
+    case "manual":
+      return "SIMULATION HELD · DANGER FROZEN";
+  }
 }
 
 function outcomeLine(

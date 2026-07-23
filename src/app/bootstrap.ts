@@ -1,5 +1,14 @@
 import "../styles/main.css";
 
+import {
+  DEFAULT_PREFERENCES,
+  loadHighScore,
+  loadPreferences,
+  saveHighScore,
+  savePreferences,
+  type PlayerPreferences,
+  type PreferenceStorage,
+} from "./preferences";
 import { Game, DEFAULT_RUN_SEED } from "../game/Game";
 import { AudioEngine } from "../game/audio/AudioEngine";
 import { validateGameContent } from "../game/config";
@@ -8,6 +17,7 @@ import type { EventUnion, GameplayEventMap } from "../game/core/events";
 import { SystemRng } from "../game/core/rng";
 import type { DebugCommand } from "../game/debug/DebugPanel";
 import { CanvasRenderer } from "../game/render/CanvasRenderer";
+import type { GameStateId, ReadonlyGameState } from "../game/state";
 import { InputManager } from "../game/systems/input";
 
 interface RuntimeStats {
@@ -27,6 +37,11 @@ interface Runtime {
   readonly stats: RuntimeStats;
   readonly eventHistory: EventUnion<GameplayEventMap>[];
   readonly debugCommands: DebugCommand[];
+  readonly storage: PreferenceStorage | null;
+  preferences: PlayerPreferences;
+  highScore: number;
+  newHighScore: boolean;
+  previousState: GameStateId;
   timeScale: number;
   singleStepRequested: boolean;
 }
@@ -40,14 +55,27 @@ async function bootstrap(): Promise<void> {
   const status = requireElement("appStatus", HTMLParagraphElement);
   const parameters = new URLSearchParams(window.location.search);
   const seed = parameters.get("seed") ?? DEFAULT_RUN_SEED;
+  const storage = getBrowserStorage();
+  const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const preferences = loadPreferences(storage, {
+    ...DEFAULT_PREFERENCES,
+    reducedShake: reducedMotionPreferred ?? false,
+  });
 
   const audio = new AudioEngine(window);
+  audio.setMix({
+    master: preferences.masterVolume,
+    music: preferences.musicVolume,
+    effects: preferences.effectsVolume,
+    muted: preferences.muted,
+  });
   const input = new InputManager({
     target: window,
     onAudioUnlock: () => audio.init(),
   });
   const game = new Game({ seed, presentationRandom: new SystemRng() });
   const renderer = new CanvasRenderer(canvas, new SystemRng());
+  const highScore = loadHighScore(storage);
   const runtime: Runtime = {
     game,
     renderer,
@@ -57,9 +85,17 @@ async function bootstrap(): Promise<void> {
     stats: { fps: 0, updateMs: 0, renderMs: 0, steps: 0, entities: 0 },
     eventHistory: [],
     debugCommands: [],
+    storage,
+    preferences,
+    highScore,
+    newHighScore: false,
+    previousState: game.state.state,
     timeScale: 1,
     singleStepRequested: false,
   };
+  syncRendererPresentation(runtime);
+  setupGameInterface(runtime);
+  setupInterruptionHandling(runtime);
 
   let updateDebugPanel: (() => void) | undefined;
   if (import.meta.env.DEV) {
@@ -86,8 +122,12 @@ async function bootstrap(): Promise<void> {
     runtime.stats.steps = clockFrame.simulatedSteps;
     runtime.stats.updateMs = smooth(runtime.stats.updateMs, performance.now() - updateStart, 0.15);
 
+    const view = runtime.game.view();
+    updateTerminalPresentation(runtime, view);
+    runtime.audio.updateMusic(createAdaptiveMusicState(view));
+
     const renderStart = performance.now();
-    runtime.renderer.render(runtime.game.view());
+    runtime.renderer.render(view);
     runtime.stats.renderMs = smooth(runtime.stats.renderMs, performance.now() - renderStart, 0.15);
     const snapshot = runtime.game.snapshot();
     runtime.stats.entities =
@@ -113,9 +153,254 @@ function consumeEvents(runtime: Runtime): void {
     if (event.type === "audio") {
       runtime.audio.play(event.payload.cue);
     }
+    if (event.type === "effect") {
+      const freezeSeconds = impactFreezeFor(event.payload.kind, event.payload.size);
+      runtime.renderer.triggerImpactFreeze(freezeSeconds);
+    }
   }
   if (runtime.eventHistory.length > 50) {
     runtime.eventHistory.splice(0, runtime.eventHistory.length - 50);
+  }
+}
+
+function setupGameInterface(runtime: Runtime): void {
+  const stage = requireElement("gameStage", HTMLElement);
+  const settingsPanel = requireElement("settingsPanel", HTMLElement);
+  const settingsButton = requireElement("settingsButton", HTMLButtonElement);
+  const muteButton = requireElement("muteButton", HTMLButtonElement);
+  const closeButton = requireElement("closeSettingsButton", HTMLButtonElement);
+  const doneButton = requireElement("doneSettingsButton", HTMLButtonElement);
+  const fullscreenButton = requireElement("fullscreenButton", HTMLButtonElement);
+  const masterInput = requireElement("masterVolume", HTMLInputElement);
+  const musicInput = requireElement("musicVolume", HTMLInputElement);
+  const effectsInput = requireElement("effectsVolume", HTMLInputElement);
+  const masterOutput = requireElement("masterVolumeValue", HTMLOutputElement);
+  const musicOutput = requireElement("musicVolumeValue", HTMLOutputElement);
+  const effectsOutput = requireElement("effectsVolumeValue", HTMLOutputElement);
+  const muteToggle = requireElement("muteToggle", HTMLInputElement);
+  const reducedShakeToggle = requireElement("reducedShakeToggle", HTMLInputElement);
+
+  const updatePreferences = (patch: Partial<PlayerPreferences>): void => {
+    runtime.preferences = { ...runtime.preferences, ...patch };
+    savePreferences(runtime.storage, runtime.preferences);
+    runtime.audio.setMix({
+      master: runtime.preferences.masterVolume,
+      music: runtime.preferences.musicVolume,
+      effects: runtime.preferences.effectsVolume,
+      muted: runtime.preferences.muted,
+    });
+    syncRendererPresentation(runtime);
+    syncControls();
+  };
+
+  const syncControls = (): void => {
+    const { preferences } = runtime;
+    setVolumeControl(masterInput, masterOutput, preferences.masterVolume);
+    setVolumeControl(musicInput, musicOutput, preferences.musicVolume);
+    setVolumeControl(effectsInput, effectsOutput, preferences.effectsVolume);
+    muteToggle.checked = preferences.muted;
+    reducedShakeToggle.checked = preferences.reducedShake;
+    muteButton.textContent = preferences.muted ? "SOUND OFF" : "SOUND ON";
+    muteButton.setAttribute("aria-pressed", String(preferences.muted));
+  };
+
+  const openSettings = (): void => {
+    if (!settingsPanel.hidden) {
+      return;
+    }
+    runtime.audio.init();
+    runtime.input.clear();
+    runtime.game.pause("settings");
+    settingsPanel.hidden = false;
+    settingsButton.setAttribute("aria-expanded", "true");
+    closeButton.focus();
+  };
+
+  const closeSettings = (): void => {
+    if (settingsPanel.hidden) {
+      return;
+    }
+    runtime.input.clear();
+    settingsPanel.hidden = true;
+    settingsButton.setAttribute("aria-expanded", "false");
+    settingsButton.focus();
+  };
+
+  const toggleFullscreen = async (): Promise<void> => {
+    runtime.audio.init();
+    try {
+      if (document.fullscreenElement === stage) {
+        await document.exitFullscreen();
+      } else {
+        await stage.requestFullscreen();
+      }
+    } catch {
+      fullscreenButton.textContent = "FULLSCREEN UNAVAILABLE";
+      fullscreenButton.disabled = true;
+    }
+  };
+
+  masterInput.addEventListener("input", () =>
+    updatePreferences({ masterVolume: readVolumeControl(masterInput) }),
+  );
+  musicInput.addEventListener("input", () =>
+    updatePreferences({ musicVolume: readVolumeControl(musicInput) }),
+  );
+  effectsInput.addEventListener("input", () =>
+    updatePreferences({ effectsVolume: readVolumeControl(effectsInput) }),
+  );
+  muteToggle.addEventListener("change", () => updatePreferences({ muted: muteToggle.checked }));
+  reducedShakeToggle.addEventListener("change", () =>
+    updatePreferences({ reducedShake: reducedShakeToggle.checked }),
+  );
+  muteButton.addEventListener("click", () => {
+    runtime.audio.init();
+    updatePreferences({ muted: !runtime.preferences.muted });
+  });
+  settingsButton.addEventListener("click", openSettings);
+  closeButton.addEventListener("click", closeSettings);
+  doneButton.addEventListener("click", closeSettings);
+  fullscreenButton.addEventListener("click", () => void toggleFullscreen());
+
+  settingsPanel.addEventListener("keydown", (event) => {
+    event.stopPropagation();
+    if (event.code === "Escape") {
+      event.preventDefault();
+      closeSettings();
+    }
+  });
+  settingsPanel.addEventListener("keyup", (event) => event.stopPropagation());
+
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.repeat || isEditableTarget(event.target) || !settingsPanel.hidden) {
+        return;
+      }
+      switch (event.code) {
+        case "KeyM":
+          event.preventDefault();
+          event.stopPropagation();
+          runtime.audio.init();
+          updatePreferences({ muted: !runtime.preferences.muted });
+          break;
+        case "KeyF":
+          event.preventDefault();
+          event.stopPropagation();
+          void toggleFullscreen();
+          break;
+        case "KeyS":
+          event.preventDefault();
+          event.stopPropagation();
+          openSettings();
+          break;
+      }
+    },
+    true,
+  );
+
+  document.addEventListener("fullscreenchange", () => {
+    fullscreenButton.disabled = false;
+    fullscreenButton.textContent =
+      document.fullscreenElement === stage ? "EXIT FULLSCREEN" : "ENTER FULLSCREEN";
+    runtime.renderer.resize();
+  });
+  window.addEventListener("pointerdown", () => runtime.audio.init(), { passive: true });
+
+  if (!document.fullscreenEnabled) {
+    fullscreenButton.textContent = "FULLSCREEN UNAVAILABLE";
+    fullscreenButton.disabled = true;
+  }
+  syncControls();
+}
+
+function setupInterruptionHandling(runtime: Runtime): void {
+  const interrupt = (): void => {
+    runtime.input.clear();
+    runtime.game.pause("focus");
+    runtime.audio.suspend();
+  };
+
+  window.addEventListener("blur", interrupt);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      interrupt();
+    }
+  });
+}
+
+function updateTerminalPresentation(runtime: Runtime, state: ReadonlyGameState): void {
+  const terminal = state.state === "gameOver" || state.state === "victory";
+  if (terminal && state.player.score > runtime.highScore) {
+    runtime.highScore = state.player.score;
+    runtime.newHighScore = true;
+    saveHighScore(runtime.storage, runtime.highScore);
+    syncRendererPresentation(runtime);
+  } else if (state.state !== runtime.previousState && state.state === "playing") {
+    runtime.newHighScore = false;
+    syncRendererPresentation(runtime);
+  }
+  runtime.previousState = state.state;
+}
+
+function syncRendererPresentation(runtime: Runtime): void {
+  runtime.renderer.setPresentation({
+    highScore: runtime.highScore,
+    muted: runtime.preferences.muted,
+    newHighScore: runtime.newHighScore,
+    reducedShake: runtime.preferences.reducedShake,
+  });
+}
+
+function createAdaptiveMusicState(state: ReadonlyGameState) {
+  const active =
+    state.state === "playing" || state.state === "waveClear" || state.state === "bossIntro";
+  const wavePressure = ((Math.max(1, state.currentWave) - 1) / 7) * 0.58;
+  const entityPressure = Math.min(0.28, (state.enemies.length + state.enemyBullets.length) * 0.012);
+  const bossPressure = state.boss === null ? 0 : 0.62 + state.boss.phase * 0.09;
+  return {
+    active,
+    pressure: Math.min(1, Math.max(wavePressure + entityPressure, bossPressure)),
+    bossPhase: state.boss?.phase ?? null,
+  };
+}
+
+function impactFreezeFor(kind: GameplayEventMap["effect"]["kind"], size: number): number {
+  switch (kind) {
+    case "bomb":
+      return 0.055;
+    case "bossPulse":
+      return 0.065;
+    case "burst":
+      return size >= 58 ? 0.038 : size >= 34 ? 0.022 : 0;
+    case "ring":
+      return 0;
+  }
+}
+
+function setVolumeControl(input: HTMLInputElement, output: HTMLOutputElement, value: number): void {
+  const percentage = Math.round(value * 100);
+  input.value = String(percentage);
+  output.value = `${percentage}%`;
+}
+
+function readVolumeControl(input: HTMLInputElement): number {
+  return Math.max(0, Math.min(1, Number(input.value) / 100));
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  );
+}
+
+function getBrowserStorage(): PreferenceStorage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
   }
 }
 
@@ -123,10 +408,21 @@ async function setupDevelopmentTools(
   runtime: Runtime,
   initiallyOpen: boolean,
 ): Promise<() => void> {
-  const { mountDebugPanel } = await import("../game/debug/DebugPanel");
   const dispatch = (command: DebugCommand): void => {
     runtime.debugCommands.push(command);
   };
+  const debugApi = {
+    dispatch,
+    snapshot: () => runtime.game.snapshot(),
+    deterministicState: () => runtime.game.deterministicState(),
+    forceState: (state: "gameOver" | "victory") => runtime.game.forceState(state),
+  };
+  Object.defineProperty(window, "__ORBIT_DEBUG__", {
+    value: debugApi,
+    configurable: true,
+  });
+
+  const { mountDebugPanel } = await import("../game/debug/DebugPanel");
   const panel = mountDebugPanel({
     initiallyOpen,
     dispatch,
@@ -138,17 +434,6 @@ async function setupDevelopmentTools(
         summary: summarizeEvent(event),
       })),
     getStats: () => runtime.stats,
-  });
-
-  const debugApi = {
-    dispatch,
-    snapshot: () => runtime.game.snapshot(),
-    deterministicState: () => runtime.game.deterministicState(),
-    forceState: (state: "gameOver" | "victory") => runtime.game.forceState(state),
-  };
-  Object.defineProperty(window, "__ORBIT_DEBUG__", {
-    value: debugApi,
-    configurable: true,
   });
 
   return () => panel.update();

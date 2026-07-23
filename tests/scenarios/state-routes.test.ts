@@ -47,6 +47,32 @@ describe("game state routes", () => {
     expect(game.snapshot().waveElapsed).toBe(beforePause);
   });
 
+  it("records focus and settings pauses without hiding a live simulation", () => {
+    const game = createGame();
+    game.startRun();
+    game.step(FIXED_STEP_SECONDS, EMPTY_INPUT_SNAPSHOT);
+    const beforePause = game.deterministicState();
+
+    expect(game.pause("focus")).toBe(true);
+    expect(game.snapshot()).toMatchObject({
+      state: "paused",
+      pausedFrom: "playing",
+      pauseReason: "focus",
+    });
+    for (let step = 0; step < 30; step += 1) {
+      game.step(FIXED_STEP_SECONDS, EMPTY_INPUT_SNAPSHOT);
+    }
+    expect(game.deterministicState()).not.toBe(beforePause);
+    const pausedState = game.deterministicState();
+    game.step(FIXED_STEP_SECONDS, EMPTY_INPUT_SNAPSHOT);
+    expect(game.deterministicState()).toBe(pausedState);
+
+    expect(game.resume()).toBe(true);
+    expect(game.snapshot()).toMatchObject({ state: "playing", pauseReason: "manual" });
+    expect(game.pause("settings")).toBe(true);
+    expect(game.snapshot()).toMatchObject({ state: "paused", pauseReason: "settings" });
+  });
+
   it("does not drop pause taps during transition states", () => {
     const game = createGame();
     game.startRun();

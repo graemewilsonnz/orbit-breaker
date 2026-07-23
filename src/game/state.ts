@@ -18,6 +18,9 @@ export const GAME_STATES = [
 export type GameStateId = (typeof GAME_STATES)[number];
 export type PausableGameStateId = "playing" | "waveClear" | "bossIntro";
 
+export const PAUSE_REASONS = ["manual", "focus", "settings"] as const;
+export type PauseReason = (typeof PAUSE_REASONS)[number];
+
 export const PROJECTILE_OWNERS = ["player", "enemy"] as const;
 export type ProjectileOwner = (typeof PROJECTILE_OWNERS)[number];
 
@@ -207,6 +210,7 @@ export interface ScoreFeedbackState {
 export interface GameState {
   state: GameStateId;
   pausedFrom: PausableGameStateId;
+  pauseReason: PauseReason;
   stateTimer: number;
   player: PlayerState;
   wave: WaveRuntimeState;
@@ -253,6 +257,7 @@ export interface ReadonlyWaveRuntimeState extends Omit<Readonly<WaveRuntimeState
 export interface ReadonlyGameState {
   readonly state: GameStateId;
   readonly pausedFrom: PausableGameStateId;
+  readonly pauseReason: PauseReason;
   readonly stateTimer: number;
   readonly player: ReadonlyPlayerState;
   readonly wave: ReadonlyWaveRuntimeState;

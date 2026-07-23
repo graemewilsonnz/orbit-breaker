@@ -1,6 +1,12 @@
 import { CONFIG } from "../config";
-import { circlesOverlap, distance, polarDistance } from "../core/geometry";
-import type { EnemyState } from "../state";
+import {
+  circlesOverlap,
+  distance,
+  polarDistance,
+  polarToCartesian,
+  sweptCircleOverlap,
+} from "../core/geometry";
+import type { EnemyState, ProjectileState } from "../state";
 import { handleBossShot } from "./boss";
 import { damageEnemy, enemyPosition } from "./enemies";
 import type { SimulationHost } from "./host";
@@ -29,14 +35,14 @@ export function updateShieldLinks(host: CollisionHost): void {
   }
 }
 
-export function handleCollisions(host: CollisionHost): void {
-  handleShotEnemyCollisions(host);
+export function handleCollisions(host: CollisionHost, dt = 0): void {
+  handleShotEnemyCollisions(host, dt);
   handleShotBossCollisions(host);
-  handlePlayerDangerCollisions(host);
+  handlePlayerDangerCollisions(host, dt);
   handlePowerUpCollisions(host);
 }
 
-export function handleShotEnemyCollisions(host: CollisionHost): void {
+export function handleShotEnemyCollisions(host: CollisionHost, dt = 0): void {
   for (const shot of host.state.playerShots) {
     if (!shot.active) {
       continue;
@@ -49,9 +55,15 @@ export function handleShotEnemyCollisions(host: CollisionHost): void {
       }
 
       const position = enemyPosition(enemy);
-      const hit =
-        distance(shotPosition, position) <=
-        shot.size + enemy.size * CONFIG.hitboxes.enemyTargetScale;
+      const hit = sweptCircleOverlap(
+        projectilePreviousPosition(shot, dt),
+        shotPosition,
+        shot.size,
+        {
+          ...position,
+          radius: enemy.size * CONFIG.hitboxes.enemyTargetScale,
+        },
+      );
       if (!hit) {
         continue;
       }
@@ -105,7 +117,7 @@ export function handleShotBossCollisions(host: CollisionHost): void {
   }
 }
 
-export function handlePlayerDangerCollisions(host: CollisionHost): void {
+export function handlePlayerDangerCollisions(host: CollisionHost, dt = 0): void {
   const playerPoint = playerPosition(host.state.player);
   const playerCircle = {
     x: playerPoint.x,
@@ -119,11 +131,12 @@ export function handlePlayerDangerCollisions(host: CollisionHost): void {
     }
     const point = projectilePosition(bullet);
     if (
-      circlesOverlap(playerCircle, {
-        x: point.x,
-        y: point.y,
-        radius: bullet.size * CONFIG.hitboxes.enemyProjectileScale,
-      })
+      sweptCircleOverlap(
+        projectilePreviousPosition(bullet, dt),
+        point,
+        bullet.size * CONFIG.hitboxes.enemyProjectileScale,
+        playerCircle,
+      )
     ) {
       bullet.active = false;
       takePlayerHit(host.state.player, host, "enemy-projectile", bullet.sourceEnemyType);
@@ -157,6 +170,15 @@ export function handlePlayerDangerCollisions(host: CollisionHost): void {
       });
     }
   }
+}
+
+function projectilePreviousPosition(projectile: Readonly<ProjectileState>, dt: number) {
+  return polarToCartesian(
+    projectile.angle - projectile.angularVelocity * dt,
+    projectile.radius - projectile.radialSpeed * dt,
+    CONFIG.arena.centerX,
+    CONFIG.arena.centerY,
+  );
 }
 
 export function enemyContactRadius(enemy: Readonly<EnemyState>): number {

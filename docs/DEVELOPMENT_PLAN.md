@@ -1,6 +1,6 @@
 # Orbit Breaker Development Plan
 
-Status: In execution — M4 implemented<br> Plan version: 0.5<br> Date: 2026-07-23
+Status: In execution — M5 implemented<br> Plan version: 0.6<br> Date: 2026-07-23
 
 ## 1. Outcome
 
@@ -371,6 +371,10 @@ Work:
 
 - Establish a coherent original visual identity, colour hierarchy, and effect budget.
 - Add layered star/tunnel motion, trails, particles, subtle impact freeze, and restrained shake.
+- Track the open player-shot centre-crossing investigation in
+  [the M5 presentation note](./M5_PLAYER_SHOT_CENTRE_DISAPPEARANCE_NOTE.md).
+- Close the pre-M5 M0–M4 review items in
+  [the M5 preparation review note](./M5_PREPARATION_REVIEW_NOTES.md).
 - Build an audio mixer with master, music, and effects controls.
 - Add a simple adaptive electronic pulse that rises with wave and boss pressure.
 - Polish title, HUD, pause, transitions, game over, victory, settings, and local high score.
@@ -383,6 +387,27 @@ Gate:
 - Audio starts only after interaction, resumes correctly, and can be fully muted.
 - No overlay hides active danger or leaves input in an unclear state.
 - Screenshots at target viewports show no clipping, softness, or incoherent overlap.
+
+Implementation result:
+
+- The cyan/gold player language, warm enemy grammar, red hostile pressure, layered radial tunnel,
+  star streaks, entity/projectile trails, bounded effects, presentation-only impact freeze, and
+  configurable shake now form a coherent presentation system without changing deterministic
+  simulation timing.
+- A Web Audio mixer provides persisted master, adaptive-pulse, and effects levels plus full mute.
+  Multi-note cues and the pressure-driven electronic pulse use native audio-clock scheduling and
+  remain dormant until the first player interaction.
+- The title, HUD, pause reasons, transitions, terminal summaries, settings panel, and persisted
+  local high score share one visual hierarchy. Settings can be opened by button or keyboard and
+  pause live gameplay before obscuring it.
+- Fullscreen, focus/visibility auto-pause, mute persistence, reduced shake, high-DPI backing
+  resolution, and responsive 16:9, 16:10, and 4:3 composition are wired into the browser runtime.
+- Player shots terminate at the centre boundary, and swept collision checks protect player-shot and
+  hostile-projectile paths from between-step tunnelling. Focused scenarios cover both hits and near
+  misses.
+- The browser harness now uses an isolated strict port, exposes the development hook before panel
+  mounting, and completes all six Chromium routes. The engineering gate passes with 170 tests across
+  21 files.
 
 ### M6 - Balance, QA, and release candidate
 

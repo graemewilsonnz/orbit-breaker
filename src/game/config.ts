@@ -31,6 +31,7 @@ export const CONFIG = {
     centerY: 360,
     playerRadius: 280,
     enemySpawnRadius: 20,
+    innerKillRadius: 0,
     dangerRadius: 240,
     outerKillRadius: 330,
     bossHitRadius: 94,

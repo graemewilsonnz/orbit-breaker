@@ -12,12 +12,18 @@ import type {
 import { currentBossPhase, getBossWeakArc } from "../systems/boss";
 import { enemyContactRadius } from "../systems/collision";
 import { renderEffects } from "./effects";
-import { renderHud, renderOverlay } from "./hud";
+import { renderHud, renderOverlay, type OverlayPresentation } from "./hud";
 
 const PLAYER_DAMAGE_HITBOX_SCALE = CONFIG.hitboxes.playerDamageScale;
 const ENEMY_TARGET_HITBOX_SCALE = CONFIG.hitboxes.enemyTargetScale;
 const ENEMY_PROJECTILE_HITBOX_SCALE = CONFIG.hitboxes.enemyProjectileScale;
 const PLAYER_HIT_FLASH_SECONDS = 0.18;
+const DEFAULT_PRESENTATION: OverlayPresentation = {
+  highScore: 0,
+  muted: false,
+  newHighScore: false,
+  reducedShake: false,
+};
 
 function currentDevicePixelRatio(): number {
   return typeof window === "undefined" ? 1 : window.devicePixelRatio;
@@ -43,6 +49,8 @@ export class CanvasRenderer {
   private readonly presentationRandom: RandomSource;
   private pixelRatio = 1;
   private showHitboxes = false;
+  private presentation: OverlayPresentation = DEFAULT_PRESENTATION;
+  private impactFreezeUntil = 0;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -81,14 +89,32 @@ export class CanvasRenderer {
     this.showHitboxes = showHitboxes;
   }
 
+  setPresentation(presentation: OverlayPresentation): void {
+    this.presentation = { ...presentation };
+  }
+
+  triggerImpactFreeze(durationSeconds: number): void {
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+      return;
+    }
+    this.impactFreezeUntil = Math.max(
+      this.impactFreezeUntil,
+      performance.now() + durationSeconds * 1000,
+    );
+  }
+
   render(state: ReadonlyGameState): void {
+    if (state.state === "playing" && performance.now() < this.impactFreezeUntil) {
+      return;
+    }
+
     const context = this.context;
     context.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
     context.clearRect(0, 0, CONFIG.canvas.width, CONFIG.canvas.height);
 
     context.save();
     if (state.shake > 0) {
-      const amount = state.shake * 16;
+      const amount = state.shake * 16 * (this.presentation.reducedShake ? 0.22 : 1);
       context.translate(
         this.presentationRandom.range(-amount, amount),
         this.presentationRandom.range(-amount, amount),
@@ -127,7 +153,7 @@ export class CanvasRenderer {
     context.restore();
 
     renderHud(context, state);
-    renderOverlay(context, state);
+    renderOverlay(context, state, this.presentation);
   }
 }
 

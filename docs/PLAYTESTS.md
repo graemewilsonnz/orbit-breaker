@@ -255,3 +255,65 @@ arcs, bounded add pressure, clean transitions, idempotent scoring, dedicated aud
 observable encounter timing. The key aperture, beam, add-pressure, HUD, and browser-log states pass
 targeted visual inspection. Manual unpowered balance and duration runs, first-time comprehension,
 and final audio acceptance remain pending.
+
+## M5 presentation, audio, and complete UX verification
+
+Date: 2026-07-23<br> Build: M5 presentation, audio, and complete UX
+
+### Scope
+
+- Unify the radial tunnel, colour hierarchy, trails, effects, impact freeze, and shake budget.
+- Add persisted master, adaptive-pulse, and effects levels; full mute; native audio scheduling; and
+  pressure-reactive music.
+- Polish title, HUD, pause reasons, wave/boss transitions, terminal summaries, settings, and local
+  high score.
+- Add fullscreen, focus/visibility auto-pause, reduced shake, and target-viewport composition.
+- Close the player-shot centre cutoff, swept projectile collision, audio timer, and browser-harness
+  defects raised by the M5 preparation notes and Gemini review.
+- Add a non-invincible normal-input flow through all eight waves.
+
+### Automated evidence
+
+- Centre-boundary tests prove inward shots clamp and deactivate at radius zero without rendering or
+  colliding on the opposite side, while boss-core shots still resolve at the authored hit radius.
+- Swept-collision scenarios prove between-endpoint hits for player and hostile shots and retain a
+  focused near miss.
+- Audio adapter tests prove delayed cue notes use Web Audio timestamps, full mute sets an exact zero
+  master gain, and adaptive pulses schedule only during active gameplay.
+- Preference tests cover invalid/blocked storage, normalized mixer/accessibility values, and
+  high-score persistence.
+- A non-invincible controller reaches the boss handoff through all eight waves in 166.65 seconds
+  using ordinary movement, fire, dash, bomb, and pickup inputs with lives remaining.
+- The full engineering gate passes: strict typecheck, lint, 170 tests across 21 files, and the
+  production build.
+- Six Chromium routes pass against an isolated strict-port server: title, state routes, M4 visual
+  states, five-cycle M1 controls/damage, M5 persistence/focus/viewports, and no-Web-Audio fallback.
+
+### Production visual inspection
+
+Passed in the in-app Chromium browser against the production build:
+
+- The title remained centred and legible at 1366x768 (16:9), with the high score and keyboard
+  shortcuts inside the composition.
+- Active Wave 1/Wave 2 HUD and threat presentation remained clear at 1440x900 (16:10); player,
+  Drifters, telegraphs, star streaks, orbit guides, and quick controls did not overlap incoherently.
+- The settings card fit at 1024x768 (4:3) without internal scrolling or clipping. Labels, values,
+  toggles, fullscreen action, focus treatment, and the paused-game explanation remained readable.
+- The pause overlay left live danger visible beneath a restrained wash and explicitly stated that
+  simulation and danger were frozen.
+- No production console warnings or errors were reported in the inspected title, active, pause, or
+  settings states.
+
+### Manual verification boundary
+
+Three unpowered human boss attempts and first-time-player comprehension remain open from M4. The
+automated 81.02-second unpowered controller is still green, but it cannot validate whether a new
+person intuitively understands the gold aperture, cyan safe arcs, audio separation, or encounter
+feel.
+
+### M5 result
+
+The Presentation, audio, and complete UX checkpoint is implemented. The game now has an authored
+visual/audio identity, persistent and accessible runtime settings, safe interruption handling, local
+score continuity, responsive high-DPI composition, bounded presentation effects, fixed projectile
+lifecycle/collision behavior, and a reliable browser gate.

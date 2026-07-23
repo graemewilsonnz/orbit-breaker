@@ -29,6 +29,20 @@ export const SOUND_NAMES = [
 export type SoundName = AudioCue;
 
 type OscillatorShape = OscillatorType;
+type AudioBus = "effects" | "music";
+
+export interface AudioMix {
+  readonly master: number;
+  readonly music: number;
+  readonly effects: number;
+  readonly muted: boolean;
+}
+
+export interface AdaptiveMusicState {
+  readonly active: boolean;
+  readonly pressure: number;
+  readonly bossPhase: number | null;
+}
 
 interface AudioWindow extends Window {
   AudioContext?: typeof AudioContext;
@@ -42,6 +56,18 @@ interface AudioWindow extends Window {
 export class AudioEngine {
   private context: AudioContext | null = null;
   private readonly AudioContextConstructor: typeof AudioContext | undefined;
+  private masterGain: GainNode | null = null;
+  private musicGain: GainNode | null = null;
+  private effectsGain: GainNode | null = null;
+  private mix: AudioMix = {
+    master: 0.8,
+    music: 0.42,
+    effects: 0.78,
+    muted: false,
+  };
+  private nextMusicBeat = 0;
+  private musicBeat = 0;
+  private musicWasActive = false;
 
   constructor(browserWindow: Window = window) {
     const compatibleWindow = browserWindow as AudioWindow;
@@ -54,9 +80,61 @@ export class AudioEngine {
       return;
     }
 
-    this.context ??= new this.AudioContextConstructor();
+    if (this.context === null) {
+      this.context = new this.AudioContextConstructor();
+      this.createMixer(this.context);
+    }
     if (this.context.state === "suspended") {
       void this.context.resume();
+    }
+  }
+
+  suspend(): void {
+    if (this.context?.state === "running") {
+      void this.context.suspend();
+    }
+  }
+
+  setMix(mix: AudioMix): void {
+    this.mix = {
+      master: clampVolume(mix.master),
+      music: clampVolume(mix.music),
+      effects: clampVolume(mix.effects),
+      muted: mix.muted,
+    };
+    this.applyMix();
+  }
+
+  updateMusic(state: AdaptiveMusicState): void {
+    const context = this.context;
+    if (context === null || context.state !== "running") {
+      this.musicWasActive = false;
+      return;
+    }
+
+    const audible = state.active && !this.mix.muted && this.mix.master > 0 && this.mix.music > 0;
+    if (!audible) {
+      this.nextMusicBeat = context.currentTime + 0.04;
+      this.musicWasActive = false;
+      return;
+    }
+
+    const pressure = clampVolume(state.pressure);
+    if (!this.musicWasActive || this.nextMusicBeat < context.currentTime - 0.2) {
+      this.nextMusicBeat = context.currentTime + 0.025;
+      this.musicBeat = 0;
+    }
+    this.musicWasActive = true;
+
+    const bpm = 78 + pressure * 54 + (state.bossPhase ?? 0) * 4;
+    const beatSeconds = 60 / bpm;
+    const scheduleThrough = context.currentTime + 0.14;
+    let scheduled = 0;
+    while (this.nextMusicBeat <= scheduleThrough && scheduled < 4) {
+      this.scheduleMusicPulse(this.nextMusicBeat, pressure, state.bossPhase);
+      this.nextMusicBeat += beatSeconds;
+      this.musicBeat += 1;
+      scheduled += 1;
     }
   }
 
@@ -110,11 +188,11 @@ export class AudioEngine {
         break;
       case "powerup":
         this.tone(520, 0.08, "sine", 0.04, 260);
-        window.setTimeout(() => this.tone(820, 0.08, "sine", 0.035, 120), 60);
+        this.tone(820, 0.08, "sine", 0.035, 120, 0.06);
         break;
       case "waveClear":
         this.tone(420, 0.12, "triangle", 0.04, 180);
-        window.setTimeout(() => this.tone(660, 0.12, "triangle", 0.04, 160), 90);
+        this.tone(660, 0.12, "triangle", 0.04, 160, 0.09);
         break;
       case "bossWarning":
         this.tone(180, 0.2, "sawtooth", 0.045, 65);
@@ -145,7 +223,7 @@ export class AudioEngine {
         break;
       case "gameOver":
         this.tone(190, 0.25, "sawtooth", 0.05, -80);
-        window.setTimeout(() => this.tone(120, 0.28, "sawtooth", 0.05, -50), 150);
+        this.tone(120, 0.28, "sawtooth", 0.05, -50, 0.15);
         break;
       case "dash":
         this.tone(360, 0.06, "triangle", 0.025, 240);
@@ -164,9 +242,11 @@ export class AudioEngine {
     volume: number,
     slide: number,
     delaySeconds = 0,
+    bus: AudioBus = "effects",
   ): void {
     const context = this.context;
-    if (context === null) {
+    const output = bus === "music" ? this.musicGain : this.effectsGain;
+    if (context === null || output === null) {
       return;
     }
 
@@ -182,17 +262,17 @@ export class AudioEngine {
       );
     }
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(volume, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), now + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     oscillator.connect(gain);
-    gain.connect(context.destination);
+    gain.connect(output);
     oscillator.start(now);
     oscillator.stop(now + duration + 0.02);
   }
 
   private noise(duration: number, volume: number, delaySeconds = 0, centerFrequency = 900): void {
     const context = this.context;
-    if (context === null) {
+    if (context === null || this.effectsGain === null) {
       return;
     }
 
@@ -206,13 +286,83 @@ export class AudioEngine {
     const source = context.createBufferSource();
     const filter = context.createBiquadFilter();
     const gain = context.createGain();
+    const now = context.currentTime + delaySeconds;
     filter.type = "bandpass";
     filter.frequency.value = centerFrequency;
-    gain.gain.value = volume;
+    gain.gain.setValueAtTime(Math.max(0.0001, volume), now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     source.buffer = buffer;
     source.connect(filter);
     filter.connect(gain);
-    gain.connect(context.destination);
-    source.start(context.currentTime + delaySeconds);
+    gain.connect(this.effectsGain);
+    source.start(now);
   }
+
+  private createMixer(context: AudioContext): void {
+    this.masterGain = context.createGain();
+    this.musicGain = context.createGain();
+    this.effectsGain = context.createGain();
+    this.musicGain.connect(this.masterGain);
+    this.effectsGain.connect(this.masterGain);
+    this.masterGain.connect(context.destination);
+    this.applyMix();
+  }
+
+  private applyMix(): void {
+    const context = this.context;
+    if (
+      context === null ||
+      this.masterGain === null ||
+      this.musicGain === null ||
+      this.effectsGain === null
+    ) {
+      return;
+    }
+
+    const now = context.currentTime;
+    setGain(this.masterGain, this.mix.muted ? 0 : this.mix.master, now);
+    setGain(this.musicGain, this.mix.music, now);
+    setGain(this.effectsGain, this.mix.effects, now);
+  }
+
+  private scheduleMusicPulse(startTime: number, pressure: number, bossPhase: number | null): void {
+    const context = this.context;
+    if (context === null) {
+      return;
+    }
+
+    const scale = bossPhase === null ? [82.41, 98, 110, 123.47] : [73.42, 92.5, 110, 138.59];
+    const root = scale[this.musicBeat % scale.length] ?? scale[0] ?? 82.41;
+    const delay = Math.max(0, startTime - context.currentTime);
+    const accent = this.musicBeat % 4 === 0;
+    this.tone(
+      root,
+      0.13 + pressure * 0.055,
+      "triangle",
+      (accent ? 0.082 : 0.058) + pressure * 0.018,
+      -root * 0.12,
+      delay,
+      "music",
+    );
+    if (accent || pressure > 0.72) {
+      this.tone(
+        root * (bossPhase === null ? 2 : 1.5),
+        0.075,
+        "sine",
+        0.024 + pressure * 0.012,
+        root * 0.08,
+        delay + 0.012,
+        "music",
+      );
+    }
+  }
+}
+
+function clampVolume(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+}
+
+function setGain(node: GainNode, value: number, now: number): void {
+  node.gain.cancelScheduledValues(now);
+  node.gain.setTargetAtTime(value, now, 0.018);
 }
